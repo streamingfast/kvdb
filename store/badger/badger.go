@@ -6,10 +6,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 
+	"github.com/dfuse-io/kvdb/store"
 	"github.com/dgraph-io/badger/v2"
 	"github.com/dgraph-io/badger/v2/options"
-	"github.com/dfuse-io/kvdb/store"
 	"go.uber.org/zap"
 )
 
@@ -36,6 +38,11 @@ func NewStore(dsnString string) (store.KVStore, error) {
 	zlog.Debug("setting up badger db",
 		zap.String("dsn.path", dsnString),
 	)
+
+	createPath := filepath.Dir(dsn.Path)
+	if err := os.MkdirAll(createPath, 0755); err != nil {
+		return nil, fmt.Errorf("creating path %q: %s", createPath, err)
+	}
 
 	db, err := badger.Open(badger.DefaultOptions(dsn.Path).WithLogger(nil).WithCompression(options.None))
 	if err != nil {
