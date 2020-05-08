@@ -21,7 +21,7 @@ func TestAll(t *testing.T) {
 
 func newTestFactory(t *testing.T) storetest.DriverFactory {
 	return func() (store.KVStore, storetest.DriverCleanupFunc) {
-		kvStore, err := NewStore("tikv://pd0:2379?keyPrefix=fafa")
+		kvStore, err := NewStore("tikv://pd0:2379/helloworld")
 		if err != nil {
 			t.Skip("pd0 unreachable, cannot run tests")
 			return nil, nil

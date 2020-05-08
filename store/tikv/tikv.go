@@ -61,14 +61,12 @@ func NewStore(dsnString string) (store.KVStore, error) {
 		compressor:   compressor,
 	}
 
-	keyPrefix := dsn.Query().Get("keyPrefix")
-	if keyPrefix != "" {
-		keyPrefixBytes, err := hex.DecodeString(keyPrefix)
-		if err != nil {
-			return nil, fmt.Errorf("decoding keyPrefix as hex: %s", err)
-		}
-		s.keyPrefix = keyPrefixBytes
+	keyPrefix := strings.Trim(dsn.Path, "/") + ";"
+	if len(keyPrefix) < 4 {
+		return nil, fmt.Errorf("table prefix needs to be more than 3 characters")
 	}
+
+	s.keyPrefix = []byte(keyPrefix)
 
 	return s, nil
 }
