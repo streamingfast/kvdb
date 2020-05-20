@@ -19,7 +19,7 @@ func NewCompressor(mode string) (Compressor, error) {
 	case "none", "false", "no":
 		return NewNoOpCompressor(), nil
 	default:
-		return nil, fmt.Errorf("invalid compression value, use zstd (by default) or 'none'")
+		return nil, fmt.Errorf("invalid compression value, use '' or zstd (for legacy support) or 'none'")
 	}
 }
 
@@ -38,22 +38,16 @@ func (NoOpCompressor) Decompress(in []byte) ([]byte, error) {
 
 type ZstdCompressor struct {
 	dec *zstd.Decoder
-	enc *zstd.Encoder
 }
 
 func NewZstdCompressor() *ZstdCompressor {
-	enc, _ := zstd.NewWriter(nil) // Errors only on failed `opts` application
 	dec, _ := zstd.NewReader(nil)
 	return &ZstdCompressor{
 		dec: dec,
-		enc: enc,
 	}
 }
 
 func (c *ZstdCompressor) Compress(in []byte) (out []byte) {
-	if len(in) > 256 {
-		return c.enc.EncodeAll(in, out)
-	}
 	return in
 }
 

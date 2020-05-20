@@ -44,11 +44,13 @@ func NewStore(dsnString string) (store.KVStore, error) {
 		return nil, fmt.Errorf("creating path %q: %s", createPath, err)
 	}
 
-	db, err := badger.Open(badger.DefaultOptions(dsn.Path).WithLogger(nil).WithCompression(options.None))
+	db, err := badger.Open(badger.DefaultOptions(dsn.Path).WithLogger(nil).WithCompression(options.Snappy))
 	if err != nil {
 		return nil, fmt.Errorf("badger new: open badger db: %w", err)
 	}
 
+	//Deprecated: this is only used for backward compatible support as we deprecated this support in Badger
+	// It only allow for seamless decompression -- otherwise Snappy kicks in automatically
 	compressor, err := store.NewCompressor(dsn.Query().Get("compression"))
 	if err != nil {
 		return nil, err

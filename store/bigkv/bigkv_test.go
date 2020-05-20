@@ -21,7 +21,7 @@ func TestAll(t *testing.T) {
 
 func newTestFactory(t *testing.T) storetest.DriverFactory {
 	return func() (store.KVStore, storetest.DriverCleanupFunc) {
-		kvStore, err := NewStore("bigkv://dev.dev/dev?createTable=true&compression=none")
+		kvStore, err := NewStore("bigkv://dev.dev/dev?createTable=true")
 		if err != nil {
 			t.Skip("bigtable unreachable, cannot run tests")
 			return nil, nil

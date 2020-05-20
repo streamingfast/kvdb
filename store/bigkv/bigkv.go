@@ -25,7 +25,6 @@ type Store struct {
 	tableName string
 
 	batchPut   *store.BatchPut
-	compressor store.Compressor
 }
 
 func init() {
@@ -86,14 +85,9 @@ func NewStore(dsnString string) (store.KVStore, error) {
 		maxRowsBeforeFlush = mb
 	}
 
-	compressor, err := store.NewCompressor(dsn.Query().Get("compression"))
-	if err != nil {
-		return nil, err
-	}
 	s := &Store{
 		client:     client,
 		batchPut:   store.NewBatchPut(int(maxBytesBeforeFlush), int(maxRowsBeforeFlush), time.Duration(maxSecondsBeforeFlush)*time.Second),
-		compressor: compressor,
 	}
 
 	if keyPrefix := dsn.Query().Get("keyPrefix"); keyPrefix != "" {
@@ -146,7 +140,7 @@ func (s *Store) Close() error {
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 	//zlog.Debug("putting", zap.String("key", hex.EncodeToString(key)))
-	s.batchPut.Put(s.withPrefix(key), s.compressor.Compress(value))
+	s.batchPut.Put(s.withPrefix(key), value)
 	if s.batchPut.ShouldFlush() {
 		return s.FlushPuts(ctx)
 	}
@@ -188,12 +182,7 @@ func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
 		return nil, store.ErrNotFound
 	}
 
-	value, err = s.compressor.Decompress(row["kv"][0].Value)
-	if err != nil {
-		return nil, err
-	}
-
-	return value, nil
+	return row["kv"][0].Value, nil
 }
 
 func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
@@ -237,14 +226,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 
 	go func() {
 		err := s.table.ReadRows(ctx, rowRange, func(row bigtable.Row) bool {
-
-			value, err := s.compressor.Decompress(row["kv"][0].Value)
-			if err != nil {
-				sit.PushError(err)
-				return false
-			}
-
-			sit.PushItem(&store.KV{s.withoutPrefix([]byte(row.Key())), value})
+			sit.PushItem(&store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
 			return true
 		}, opts...)
 		if err != nil {
@@ -269,13 +251,7 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte) *store.Iterator {
 
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.PrefixRange(string(prefix)), func(row bigtable.Row) bool {
-			value, err := s.compressor.Decompress(row["kv"][0].Value)
-			if err != nil {
-				sit.PushError(err)
-				return false
-			}
-
-			sit.PushItem(&store.KV{s.withoutPrefix([]byte(row.Key())), value})
+			sit.PushItem(&store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
 			return true
 		}, opts...)
 		if err != nil {
