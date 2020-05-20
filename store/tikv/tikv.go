@@ -18,7 +18,6 @@ type Store struct {
 	client       *rawkv.Client
 	clientConfig config.Config
 	keyPrefix    []byte
-	compressor   store.Compressor
 
 	batchPut *store.BatchPut
 }
@@ -49,16 +48,10 @@ func NewStore(dsnString string) (store.KVStore, error) {
 		return nil, err
 	}
 
-	compressor, err := store.NewCompressor(dsn.Query().Get("compression"))
-	if err != nil {
-		return nil, err
-	}
-
 	s := &Store{
 		client:       client,
 		clientConfig: rawConfig,
 		batchPut:     store.NewBatchPut(70000000, 0, 0),
-		compressor:   compressor,
 	}
 
 	keyPrefix := strings.Trim(dsn.Path, "/") + ";"
@@ -76,8 +69,7 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
-	//zlog.Debug("putting", zap.String("key", hex.EncodeToString(key)))
-	s.batchPut.Put(s.withPrefix(key), s.compressor.Compress(value))
+	s.batchPut.Put(s.withPrefix(key), value)
 	if s.batchPut.ShouldFlush() {
 		return s.FlushPuts(ctx)
 	}
@@ -114,10 +106,6 @@ func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
 	if val == nil {
 		return nil, store.ErrNotFound
 	}
-	val, err = s.compressor.Decompress(val)
-	if err != nil {
-		return nil, err
-	}
 	return val, nil
 }
 
@@ -127,12 +115,6 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 	go func() {
 		for _, key := range keys {
 			val, err := s.client.Get(ctx, s.withPrefix(key))
-			if err != nil {
-				kr.PushError(err)
-				return
-			}
-
-			val, err = s.compressor.Decompress(val)
 			if err != nil {
 				kr.PushError(err)
 				return
@@ -162,13 +144,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 			return
 		}
 		for idx, key := range keys {
-			val, err := s.compressor.Decompress(values[idx])
-			if err != nil {
-				sit.PushError(err)
-				return
-			}
-
-			sit.PushItem(&store.KV{s.withoutPrefix(key), val})
+			sit.PushItem(&store.KV{s.withoutPrefix(key), values[idx]})
 		}
 		sit.PushFinished()
 	}()
@@ -198,13 +174,7 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte) *store.Iterator {
 			}
 
 			for idx, k := range keys {
-				val, err := s.compressor.Decompress(values[idx])
-				if err != nil {
-					sit.PushError(err)
-					return
-				}
-
-				sit.PushItem(&store.KV{s.withoutPrefix(k), val})
+				sit.PushItem(&store.KV{s.withoutPrefix(k), values[idx]})
 
 				startKey = key.Key(k).Next()
 			}
