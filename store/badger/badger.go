@@ -18,6 +18,7 @@ import (
 type Store struct {
 	db         *badger.DB
 	writeBatch *badger.WriteBatch
+	compressor store.Compressor
 }
 
 func init() {
@@ -48,8 +49,16 @@ func NewStore(dsnString string) (store.KVStore, error) {
 		return nil, fmt.Errorf("badger new: open badger db: %w", err)
 	}
 
+	//Deprecated: this is only used for backward compatible support as we deprecated this support in Badger
+	// It only allow for seamless decompression -- otherwise Snappy kicks in automatically
+	compressor, err := store.NewCompressor(dsn.Query().Get("compression"))
+	if err != nil {
+		return nil, err
+	}
+
 	s := &Store{
 		db:         db,
+		compressor: compressor,
 	}
 
 	return s, nil
@@ -64,6 +73,8 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 	if s.writeBatch == nil {
 		s.writeBatch = s.db.NewWriteBatch()
 	}
+
+	value = s.compressor.Compress(value)
 
 	err = s.writeBatch.SetEntry(badger.NewEntry(key, value))
 	if err == badger.ErrTxnTooBig {
@@ -104,7 +115,14 @@ func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
 			return err
 		}
 
+		// TODO: optimize: if we're going to decompress, we can use the `item.Value` instead
+		// of making a copy
 		value, err = item.ValueCopy(nil)
+		if err != nil {
+			return err
+		}
+
+		value, err = s.compressor.Decompress(value)
 		if err != nil {
 			return err
 		}
@@ -130,6 +148,10 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 					return err
 				}
 
+				value, err = s.compressor.Decompress(value)
+				if err != nil {
+					return err
+				}
 				kr.PushItem(&store.KV{item.KeyCopy(nil), value})
 
 				// TODO: make sure this is conform and takes inspiration from `Scan`.. deals
@@ -162,6 +184,11 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 				}
 
 				value, err := bit.Item().ValueCopy(nil)
+				if err != nil {
+					return err
+				}
+
+				value, err = s.compressor.Decompress(value)
 				if err != nil {
 					return err
 				}
@@ -203,6 +230,11 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte) *store.Iterator {
 
 				key := it.Item().KeyCopy(nil)
 				value, err := it.Item().ValueCopy(nil)
+				if err != nil {
+					return err
+				}
+
+				value, err = s.compressor.Decompress(value)
 				if err != nil {
 					return err
 				}
