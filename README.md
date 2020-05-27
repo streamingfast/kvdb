@@ -17,10 +17,9 @@ if err != nil {
 ```
 
 The following DSNs are provided by this pakcage:
-
-* SQLite: `sqlite3:///tmp/mydb.db?cache=shared&mode=memory&createTables=true`
-* MySQL: `mysql://root:@(127.0.0.1:4000)/mydb?createTables=true`
-* Bigtable: `bigtable://project.instance/tbl-prefix?createTables=true`
+* Badger: `badger:///home/user/dfuse-data/component/my-badger.db`
+* TiKV:   `tikv://pd0,pd1,pd2:2379?prefix=namespace_prefix`
+* Google Cloud BigTable: `bigkv://project.instance/namespace-prefix?createTables=true`
 
 ## Contributing
 
