@@ -120,7 +120,9 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 				return
 			}
 
-			kr.PushItem(&store.KV{key, val})
+			if !kr.PushItem(&store.KV{key, val}) {
+				break
+			}
 		}
 		kr.PushFinished()
 	}()
@@ -144,7 +146,9 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 			return
 		}
 		for idx, key := range keys {
-			sit.PushItem(&store.KV{s.withoutPrefix(key), values[idx]})
+			if !sit.PushItem(&store.KV{s.withoutPrefix(key), values[idx]}) {
+				break
+			}
 		}
 		sit.PushFinished()
 	}()
@@ -166,6 +170,7 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte) *store.Iterator {
 	}
 
 	go func() {
+	outmost:
 		for {
 			keys, values, err := s.client.Scan(ctx, startKey, exclusiveEnd, sliceSize)
 			if err != nil {
@@ -174,7 +179,9 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte) *store.Iterator {
 			}
 
 			for idx, k := range keys {
-				sit.PushItem(&store.KV{s.withoutPrefix(k), values[idx]})
+				if !sit.PushItem(&store.KV{s.withoutPrefix(k), values[idx]}) {
+					break outmost
+				}
 
 				startKey = key.Key(k).Next()
 			}

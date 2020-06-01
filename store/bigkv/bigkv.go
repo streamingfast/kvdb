@@ -24,7 +24,7 @@ type Store struct {
 	keyPrefix []byte
 	tableName string
 
-	batchPut   *store.BatchPut
+	batchPut *store.BatchPut
 }
 
 func init() {
@@ -86,8 +86,8 @@ func NewStore(dsnString string) (store.KVStore, error) {
 	}
 
 	s := &Store{
-		client:     client,
-		batchPut:   store.NewBatchPut(int(maxBytesBeforeFlush), int(maxRowsBeforeFlush), time.Duration(maxSecondsBeforeFlush)*time.Second),
+		client:   client,
+		batchPut: store.NewBatchPut(int(maxBytesBeforeFlush), int(maxRowsBeforeFlush), time.Duration(maxSecondsBeforeFlush)*time.Second),
 	}
 
 	if keyPrefix := dsn.Query().Get("keyPrefix"); keyPrefix != "" {
@@ -197,7 +197,9 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 				return
 			}
 
-			kr.PushItem(&store.KV{key, val})
+			if !kr.PushItem(&store.KV{key, val}) {
+				break
+			}
 		}
 		kr.PushFinished()
 	}()
@@ -226,8 +228,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 
 	go func() {
 		err := s.table.ReadRows(ctx, rowRange, func(row bigtable.Row) bool {
-			sit.PushItem(&store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
-			return true
+			return sit.PushItem(&store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
 		}, opts...)
 		if err != nil {
 			sit.PushError(err)
@@ -251,14 +252,13 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte) *store.Iterator {
 
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.PrefixRange(string(prefix)), func(row bigtable.Row) bool {
-			sit.PushItem(&store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
-			return true
+			return sit.PushItem(&store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
 		}, opts...)
 		if err != nil {
 			sit.PushError(err)
 			return
 		}
-		sit.PushFinished()
+		sit.PushFinished() // there was an error there!
 	}()
 
 	return sit

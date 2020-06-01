@@ -10,6 +10,11 @@ import (
 )
 
 func init() {
+	// Run tests with:
+	//
+	//     gcloud beta emulators bigtable start
+	//
+
 	//	if os.Getenv("DEBUG") != "" {
 	//logging.Override(logging.MustCreateLoggerWithLevel("test", zap.NewAtomicLevelAt(zap.DebugLevel)))
 	//	}

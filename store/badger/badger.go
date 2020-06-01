@@ -152,7 +152,10 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 				if err != nil {
 					return err
 				}
-				kr.PushItem(&store.KV{item.KeyCopy(nil), value})
+
+				if !kr.PushItem(&store.KV{item.KeyCopy(nil), value}) {
+					break
+				}
 
 				// TODO: make sure this is conform and takes inspiration from `Scan`.. deals
 				// with the `store.Iterator` properly
@@ -179,10 +182,6 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 			count := 0
 			for bit.Seek(start); bit.Valid() && bytes.Compare(bit.Item().Key(), exclusiveEnd) == -1; bit.Next() {
 				count++
-				if err := sit.Context().Err(); err != nil {
-					return err
-				}
-
 				value, err := bit.Item().ValueCopy(nil)
 				if err != nil {
 					return err
@@ -193,7 +192,9 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 					return err
 				}
 
-				sit.PushItem(&store.KV{bit.Item().KeyCopy(nil), value})
+				if !sit.PushItem(&store.KV{bit.Item().KeyCopy(nil), value}) {
+					break
+				}
 
 				if count == limit && limit > 0 {
 					break
@@ -224,9 +225,6 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte) *store.Iterator {
 			count := 0
 			for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
 				count++
-				if err := kr.Context().Err(); err != nil {
-					return err
-				}
 
 				key := it.Item().KeyCopy(nil)
 				value, err := it.Item().ValueCopy(nil)
@@ -239,7 +237,9 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte) *store.Iterator {
 					return err
 				}
 
-				kr.PushItem(&store.KV{key, value})
+				if !kr.PushItem(&store.KV{key, value}) {
+					break
+				}
 			}
 			return nil
 		})
