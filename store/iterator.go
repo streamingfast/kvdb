@@ -5,6 +5,24 @@ import (
 	"sync"
 )
 
+// Iterator can end in any of those scenarios:
+//
+// 1. PushError() is called by the db backend
+// 2. PushComplete() is called by the db backend and
+//    Next() is called by consumer until items channel is empty
+// 3. The context given by the consumer is cancelled, notifying
+//    the db backend and (hopefully) causing a PushError() to be called with context.Canceled
+//
+// In any of these cases, the following call to Next() returns false.
+//
+// Assumptions:
+//
+// * Next() must never be called again after it returned `false`
+// * No other Push...() function is called PushFinished() or PushError().
+// * Next(), Item() and Error() are never called concurrently.
+// * PushItem(), PushFinished() and PushError() are never called concurrently.
+// * If the reader wants to finish early, it should close the context to prevent waste
+//
 type Iterator struct {
 	ctx      context.Context
 	items    chan *KV
@@ -33,7 +51,10 @@ func (it *Iterator) Next() bool {
 	}
 
 	select {
-	case val := <-it.items:
+	case val, ok := <-it.items:
+		if !ok {
+			return false
+		}
 		it.lastItem = val
 
 	case err := <-it.errorCh:
@@ -67,7 +88,7 @@ func (it *Iterator) PushItem(res *KV) bool {
 
 func (it *Iterator) PushFinished() {
 	it.once.Do(func() {
-		close(it.errorCh)
+		close(it.items)
 	})
 }
 
