@@ -2,6 +2,7 @@ package bigkv
 
 import (
 	"io"
+	"os"
 	"testing"
 
 	"github.com/dfuse-io/kvdb/store"
@@ -16,14 +17,16 @@ func init() {
 }
 
 func TestAll(t *testing.T) {
-	storetest.TestAll(t, "bigkv", newTestFactory(t))
+	if os.Getenv("TEST_BIGKV") != "" {
+		storetest.TestAll(t, "bigkv", newTestFactory(t))
+	}
 }
 
 func newTestFactory(t *testing.T) storetest.DriverFactory {
 	return func() (store.KVStore, storetest.DriverCleanupFunc) {
 		kvStore, err := NewStore("bigkv://dev.dev/dev?createTable=true")
 		if err != nil {
-			t.Skip("bigtable unreachable, cannot run tests")
+			t.Skip("bigtable unreachable, cannot run tests") // FIXME: this just times out
 			return nil, nil
 		}
 		require.NoError(t, err)
