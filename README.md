@@ -10,13 +10,13 @@ It is used by **[dfuse](https://github.com/dfuse-io/dfuse)**.
 ## Usage
 
 ```go
-db, err := eosdb.New(dsn)
+db, err := store.New(dsn)
 if err != nil {
     return fmt.Errorf("failed setting up db: %s", err)
 }
 ```
 
-The following DSNs are provided by this pakcage:
+The following DSNs are provided by this package:
 * Badger: `badger:///home/user/dfuse-data/component/my-badger.db`
 * TiKV:   `tikv://pd0,pd1,pd2:2379?prefix=namespace_prefix`
 * Google Cloud BigTable: `bigkv://project.instance/namespace-prefix?createTables=true`
