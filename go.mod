@@ -6,7 +6,7 @@ require (
 	github.com/dfuse-io/logging v0.0.0-20200407175011-14021b7a79af
 	github.com/dgraph-io/badger/v2 v2.0.3
 	github.com/edsrzf/mmap-go v0.0.0-20160512033002-935e0e8a636c // indirect
-	github.com/golang/protobuf v1.3.4
+	github.com/golang/protobuf v1.4.2
 	github.com/gorilla/websocket v1.4.1-0.20190629185528-ae1634f6a989 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.1-0.20190717153623-606c73359dba // indirect
 	github.com/klauspost/compress v1.10.2
