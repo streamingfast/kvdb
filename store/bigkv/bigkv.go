@@ -186,23 +186,27 @@ func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
 }
 
 func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
+	btKeys := make([]string, len(keys))
+	for i, key := range keys {
+		btKeys[i] = string(key)
+	}
+
+	zlog.Debug("batch get", zap.Int("key_count", len(btKeys)))
+
 	kr := store.NewIterator(ctx)
-
 	go func() {
-		// TODO: optimize to do batch gets instead of one after the other (!)
-		for _, key := range keys {
-			val, err := s.Get(ctx, key)
-			if err != nil {
-				kr.PushError(err)
-				return
-			}
+		err := s.table.ReadRows(ctx, bigtable.RowList(btKeys), func(row bigtable.Row) bool {
+			return kr.PushItem(&store.KV{Key: s.withoutPrefix([]byte(row.Key())), Value: row["kv"][0].Value})
+		})
 
-			if !kr.PushItem(&store.KV{key, val}) {
-				break
-			}
+		if err != nil {
+			kr.PushError(err)
+			return
 		}
+
 		kr.PushFinished()
 	}()
+
 	return kr
 }
 
