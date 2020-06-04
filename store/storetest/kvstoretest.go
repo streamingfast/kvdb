@@ -119,7 +119,7 @@ func testPrefix(t *testing.T, driver store.KVStore, prefix []byte, limit int, ex
 	var got []store.KV
 	itr := driver.Prefix(context.Background(), prefix, limit)
 	for itr.Next() {
-		got = append(got, *itr.Item())
+		got = append(got, itr.Item())
 	}
 	testPrintKVs(fmt.Sprintf("test prefix with prefix %q", string(prefix)), got)
 	require.NoError(t, itr.Err())
@@ -130,7 +130,7 @@ func testScan(t *testing.T, driver store.KVStore, start, end []byte, limit int, 
 	var got []store.KV
 	itr := driver.Scan(context.Background(), start, end, limit)
 	for itr.Next() {
-		got = append(got, *itr.Item())
+		got = append(got, itr.Item())
 	}
 
 	testPrintKVs(fmt.Sprintf("test scan with start %q and end %q", string(start), string(end)), got)

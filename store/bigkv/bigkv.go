@@ -196,7 +196,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 	kr := store.NewIterator(ctx)
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.RowList(btKeys), func(row bigtable.Row) bool {
-			return kr.PushItem(&store.KV{Key: s.withoutPrefix([]byte(row.Key())), Value: row["kv"][0].Value})
+			return kr.PushItem(store.KV{Key: s.withoutPrefix([]byte(row.Key())), Value: row["kv"][0].Value})
 		}, opts...)
 
 		if err != nil {
@@ -231,7 +231,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 	rowRange := bigtable.NewRange(string(startKey), string(endKey))
 	go func() {
 		err := s.table.ReadRows(ctx, rowRange, func(row bigtable.Row) bool {
-			return sit.PushItem(&store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
+			return sit.PushItem(store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
 		}, opts...)
 
 		if err != nil {
@@ -259,7 +259,7 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.PrefixRange(string(prefix)), func(row bigtable.Row) bool {
-			return sit.PushItem(&store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
+			return sit.PushItem(store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
 		}, opts...)
 
 		if err != nil {

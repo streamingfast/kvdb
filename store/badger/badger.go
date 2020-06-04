@@ -152,7 +152,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 					return err
 				}
 
-				if !kr.PushItem(&store.KV{item.KeyCopy(nil), value}) {
+				if !kr.PushItem(store.KV{item.KeyCopy(nil), value}) {
 					break
 				}
 
@@ -196,7 +196,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 					return err
 				}
 
-				if !sit.PushItem(&store.KV{bit.Item().KeyCopy(nil), value}) {
+				if !sit.PushItem(store.KV{bit.Item().KeyCopy(nil), value}) {
 					break
 				}
 
@@ -245,7 +245,7 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 					return err
 				}
 
-				if !kr.PushItem(&store.KV{key, value}) {
+				if !kr.PushItem(store.KV{key, value}) {
 					break
 				}
 

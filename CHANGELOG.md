@@ -6,9 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- [`core`] Added `limit` options to `store.KVStore#Prefix`.
+- [`core`] **BREAKING** Added `limit` options to `store.KVStore#Prefix`.
+- [`core`] **BREAKING** Function `store.Iterator#Next` return's type is now `store.KV`, previously `*store.KV`.
+- [`core`] **BREAKING** Function `store.Iterator#PushItem` `item` argument's type is now `store.KV`, previously `*store.KV`.
 
 ### Improved
+- [`core`] Reduced memory allocations when receiving items from iterators.
 - [`badger`] Improved performance of `Scan` in presence of small limit value.
 - [`bigkv`] Improved performance of `BatchGet` which was sequential instead of using BigTable `ReadRows` call which is batched.
 

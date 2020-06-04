@@ -12,7 +12,7 @@ import (
 func TestIteratorPushStuck(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	it := NewIterator(ctx)
-	kv := &KV{}
+	kv := KV{}
 
 	// fill buffer
 	for i := 0; i < 100; i++ {
@@ -29,7 +29,7 @@ func TestRaceFinished(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		it := NewIterator(ctx)
-		kv := &KV{}
+		kv := KV{}
 		require.True(t, it.PushItem(kv))
 		it.PushFinished()
 		assert.True(t, it.Next())

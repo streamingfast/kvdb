@@ -119,7 +119,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 				return
 			}
 
-			if !kr.PushItem(&store.KV{key, val}) {
+			if !kr.PushItem(store.KV{key, val}) {
 				break
 			}
 		}
@@ -145,7 +145,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 			return
 		}
 		for idx, key := range keys {
-			if !sit.PushItem(&store.KV{s.withoutPrefix(key), values[idx]}) {
+			if !sit.PushItem(store.KV{s.withoutPrefix(key), values[idx]}) {
 				break
 			}
 		}
@@ -185,7 +185,7 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 			for idx, k := range keys {
 				count++
 
-				if !sit.PushItem(&store.KV{s.withoutPrefix(k), values[idx]}) {
+				if !sit.PushItem(store.KV{s.withoutPrefix(k), values[idx]}) {
 					break outmost
 				}
 
