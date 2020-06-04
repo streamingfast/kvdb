@@ -139,7 +139,6 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
-	//zlog.Debug("putting", zap.String("key", hex.EncodeToString(key)))
 	s.batchPut.Put(s.withPrefix(key), value)
 	if s.batchPut.ShouldFlush() {
 		return s.FlushPuts(ctx)
@@ -192,12 +191,13 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 	}
 
 	zlog.Debug("batch get", zap.Int("key_count", len(btKeys)))
+	opts := []bigtable.ReadOption{latestCellFilter}
 
 	kr := store.NewIterator(ctx)
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.RowList(btKeys), func(row bigtable.Row) bool {
 			return kr.PushItem(&store.KV{Key: s.withoutPrefix([]byte(row.Key())), Value: row["kv"][0].Value})
-		})
+		}, opts...)
 
 		if err != nil {
 			kr.PushError(err)
@@ -222,18 +222,18 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 		return sit
 	}
 
+	zlog.Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
 	opts := []bigtable.ReadOption{latestCellFilter}
-	rowRange := bigtable.NewRange(string(startKey), string(endKey))
-	if limit != 0 {
+	if store.Limit(limit).Bounded() {
 		opts = append(opts, bigtable.LimitRows(int64(limit)))
 	}
 
-	zlog.Debug("scanning", zap.String("start", hex.EncodeToString(startKey)), zap.String("exclusive_end", hex.EncodeToString(endKey)), zap.Int("limit", limit))
-
+	rowRange := bigtable.NewRange(string(startKey), string(endKey))
 	go func() {
 		err := s.table.ReadRows(ctx, rowRange, func(row bigtable.Row) bool {
 			return sit.PushItem(&store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
 		}, opts...)
+
 		if err != nil {
 			sit.PushError(err)
 			return
@@ -247,21 +247,26 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 var latestCellOnly = bigtable.LatestNFilter(1)
 var latestCellFilter = bigtable.RowFilter(latestCellOnly)
 
-func (s *Store) Prefix(ctx context.Context, prefix []byte) *store.Iterator {
+func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Iterator {
 	sit := store.NewIterator(ctx)
-	zlog.Debug("prefix scanning ", zap.String("prefix", hex.EncodeToString(prefix)))
-
+	zlog.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
 	opts := []bigtable.ReadOption{latestCellFilter}
+	if store.Limit(limit).Bounded() {
+		opts = append(opts, bigtable.LimitRows(int64(limit)))
+	}
+
 	prefix = s.withPrefix(prefix)
 
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.PrefixRange(string(prefix)), func(row bigtable.Row) bool {
 			return sit.PushItem(&store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
 		}, opts...)
+
 		if err != nil {
 			sit.PushError(err)
 			return
 		}
+
 		sit.PushFinished() // there was an error there!
 	}()
 

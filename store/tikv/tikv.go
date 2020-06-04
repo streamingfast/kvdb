@@ -2,7 +2,6 @@ package tikv
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"net/url"
 	"strings"
@@ -133,12 +132,12 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 	startKey := s.withPrefix(start)
 	endKey := s.withPrefix(exclusiveEnd)
 
-	if limit == 0 {
+	if store.Limit(limit).Unbounded() {
 		limit = s.clientConfig.Raw.MaxScanLimit
 	}
 
 	sit := store.NewIterator(ctx)
-	zlog.Debug("scanning", zap.String("start", hex.EncodeToString(startKey)), zap.String("exclusive_end", hex.EncodeToString(endKey)), zap.Int("limit", limit))
+	zlog.Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
 	go func() {
 		keys, values, err := s.client.Scan(ctx, startKey, endKey, limit)
 		if err != nil {
@@ -156,13 +155,16 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 	return sit
 }
 
-func (s *Store) Prefix(ctx context.Context, prefix []byte) *store.Iterator {
+func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Iterator {
 	sit := store.NewIterator(ctx)
-	zlog.Debug("prefix scanning ", zap.String("prefix", hex.EncodeToString(prefix)))
+	zlog.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
 
 	startKey := s.withPrefix(prefix)
 	exclusiveEnd := key.Key(startKey).PrefixNext()
-	sliceSize := 10
+	sliceSize := 100
+	if store.Limit(limit).Bounded() && limit < sliceSize {
+		sliceSize = limit
+	}
 
 	if len(startKey) == 0 {
 		startKey = []byte{0x00}
@@ -170,6 +172,8 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte) *store.Iterator {
 	}
 
 	go func() {
+		count := uint64(0)
+
 	outmost:
 		for {
 			keys, values, err := s.client.Scan(ctx, startKey, exclusiveEnd, sliceSize)
@@ -179,7 +183,13 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte) *store.Iterator {
 			}
 
 			for idx, k := range keys {
+				count++
+
 				if !sit.PushItem(&store.KV{s.withoutPrefix(k), values[idx]}) {
+					break outmost
+				}
+
+				if store.Limit(limit).Reached(count) {
 					break outmost
 				}
 

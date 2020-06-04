@@ -65,34 +65,59 @@ func TestBasic(t *testing.T, driver store.KVStore) {
 	_, err = driver.Get(context.Background(), []byte("keydoesnotexists"))
 	require.Equal(t, store.ErrNotFound, err)
 
-	// testing Prefix
-	testPrefix(t, driver, nil, all)
-	testPrefix(t, driver, []byte("a"), all[:1])
-	testPrefix(t, driver, []byte("c"), all[5:])
-	testPrefix(t, driver, []byte("b"), all[1:5])
-	testPrefix(t, driver, []byte("ba"), all[1:4])
+	// testing Prefix without limit
+	testPrefix(t, driver, nil, store.Unlimited, all)
+	testPrefix(t, driver, []byte("a"), store.Unlimited, all[:1])
+	testPrefix(t, driver, []byte("c"), store.Unlimited, all[5:])
+	testPrefix(t, driver, []byte("b"), store.Unlimited, all[1:5])
+	testPrefix(t, driver, []byte("ba"), store.Unlimited, all[1:4])
+
+	// testing Prefix with limit
+	testPrefix(t, driver, nil, 2, all[:2])
+	testPrefix(t, driver, nil, 5, all[:5])
+	testPrefix(t, driver, nil, 10, all)
+
+	testPrefix(t, driver, []byte("a"), 2, all[:1])
+	testPrefix(t, driver, []byte("c"), 1, all[5:6])
+	testPrefix(t, driver, []byte("b"), 3, all[1:4])
+	testPrefix(t, driver, []byte("ba"), 10, all[1:4])
 
 	// testing Scan without limit
-	//testScan(t, driver, nil, nil, 0, all)
-	testScan(t, driver, []byte("a"), []byte("a"), 0, nil)
-	testScan(t, driver, []byte("a"), []byte("b"), 0, all[:1])
-	testScan(t, driver, []byte("b"), []byte("a"), 0, nil)
-	testScan(t, driver, []byte("b"), []byte("bb"), 0, all[1:4])
-	testScan(t, driver, []byte("b"), []byte("c"), 0, all[1:5])
-	testScan(t, driver, []byte("a"), []byte("c"), 0, all[:5])
-	testScan(t, driver, []byte("ba"), []byte("bb"), 0, all[1:4])
-	testScan(t, driver, nil, nil, 0, nil)
-	testScan(t, driver, testStringsToKey(""), testStringsToKey(""), 0, nil)
+	testScan(t, driver, []byte("a"), []byte("a"), store.Unlimited, nil)
+	testScan(t, driver, []byte("a"), []byte("b"), store.Unlimited, all[:1])
+	testScan(t, driver, []byte("b"), []byte("a"), store.Unlimited, nil)
+	testScan(t, driver, []byte("b"), []byte("bb"), store.Unlimited, all[1:4])
+	testScan(t, driver, []byte("b"), []byte("c"), store.Unlimited, all[1:5])
+	testScan(t, driver, []byte("a"), []byte("c"), store.Unlimited, all[:5])
+	testScan(t, driver, []byte("ba"), []byte("bb"), store.Unlimited, all[1:4])
+	testScan(t, driver, nil, nil, store.Unlimited, nil)
+	testScan(t, driver, testStringsToKey(""), testStringsToKey(""), store.Unlimited, nil)
 
-	testScan(t, driver, nil, testStringsToKey("c"), 0, all[:5])
-	testScan(t, driver, []byte(""), testStringsToKey("c"), 0, all[:5])
-	testScan(t, driver, []byte("b"), nil, 0, nil)
-	testScan(t, driver, []byte("b"), testStringsToKey(""), 0, nil)
+	testScan(t, driver, nil, testStringsToKey("c"), store.Unlimited, all[:5])
+	testScan(t, driver, []byte(""), testStringsToKey("c"), store.Unlimited, all[:5])
+	testScan(t, driver, []byte("b"), nil, store.Unlimited, nil)
+	testScan(t, driver, []byte("b"), testStringsToKey(""), store.Unlimited, nil)
+
+	// testing scan with limit
+	testScan(t, driver, []byte("a"), []byte("a"), 100, nil)
+	testScan(t, driver, []byte("a"), []byte("b"), 1, all[:1])
+	testScan(t, driver, []byte("b"), []byte("a"), 10, nil)
+	testScan(t, driver, []byte("b"), []byte("bb"), 1, all[1:2])
+	testScan(t, driver, []byte("b"), []byte("bb"), 2, all[1:3])
+	testScan(t, driver, []byte("b"), []byte("bb"), 3, all[1:4])
+	testScan(t, driver, []byte("b"), []byte("bb"), 4, all[1:4])
+	testScan(t, driver, nil, nil, 100, nil)
+	testScan(t, driver, testStringsToKey(""), testStringsToKey(""), 10, nil)
+
+	testScan(t, driver, nil, testStringsToKey("c"), 1, all[:1])
+	testScan(t, driver, []byte(""), testStringsToKey("c"), 3, all[:3])
+	testScan(t, driver, []byte("b"), nil, 1, nil)
+	testScan(t, driver, []byte("b"), testStringsToKey(""), 1, nil)
 }
 
-func testPrefix(t *testing.T, driver store.KVStore, prefix []byte, exp []store.KV) {
+func testPrefix(t *testing.T, driver store.KVStore, prefix []byte, limit int, exp []store.KV) {
 	var got []store.KV
-	itr := driver.Prefix(context.Background(), prefix)
+	itr := driver.Prefix(context.Background(), prefix, limit)
 	for itr.Next() {
 		got = append(got, *itr.Item())
 	}

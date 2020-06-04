@@ -3,7 +3,6 @@ package badger
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"fmt"
 	"net/url"
 	"os"
@@ -69,7 +68,7 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
-	zlog.Debug("putting", zap.String("key", hex.EncodeToString(key)))
+	zlog.Debug("putting", zap.Stringer("key", store.Key(key)))
 	if s.writeBatch == nil {
 		s.writeBatch = s.db.NewWriteBatch()
 	}
@@ -173,13 +172,18 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 
 func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int) *store.Iterator {
 	sit := store.NewIterator(ctx)
-	zlog.Debug("scanning", zap.String("start", hex.EncodeToString(start)), zap.String("exclusive_end", hex.EncodeToString(exclusiveEnd)), zap.Int("limit", limit))
+	zlog.Debug("scanning", zap.Stringer("start", store.Key(start)), zap.Stringer("exclusive_end", store.Key(exclusiveEnd)), zap.Stringer("limit", store.Limit(limit)))
 	go func() {
 		err := s.db.View(func(txn *badger.Txn) error {
-			bit := txn.NewIterator(badger.DefaultIteratorOptions)
+			options := badger.DefaultIteratorOptions
+			if store.Limit(limit).Bounded() && limit < options.PrefetchSize {
+				options.PrefetchSize = limit
+			}
+
+			bit := txn.NewIterator(options)
 			defer bit.Close()
 
-			count := 0
+			count := uint64(0)
 			for bit.Seek(start); bit.Valid() && bytes.Compare(bit.Item().Key(), exclusiveEnd) == -1; bit.Next() {
 				count++
 				value, err := bit.Item().ValueCopy(nil)
@@ -196,7 +200,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 					break
 				}
 
-				if count == limit && limit > 0 {
+				if store.Limit(limit).Reached(count) {
 					break
 				}
 			}
@@ -213,16 +217,20 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 	return sit
 }
 
-func (s *Store) Prefix(ctx context.Context, prefix []byte) *store.Iterator {
+func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Iterator {
 	kr := store.NewIterator(ctx)
-	zlog.Debug("prefix scanning ", zap.String("prefix", hex.EncodeToString(prefix)))
+	zlog.Debug("prefix scanning ", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
 	go func() {
 		err := s.db.View(func(txn *badger.Txn) error {
 			options := badger.DefaultIteratorOptions
+			if store.Limit(limit).Bounded() && limit < options.PrefetchSize {
+				options.PrefetchSize = limit
+			}
+
 			it := txn.NewIterator(options)
 			defer it.Close()
 
-			count := 0
+			count := uint64(0)
 			for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
 				count++
 
@@ -238,6 +246,10 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte) *store.Iterator {
 				}
 
 				if !kr.PushItem(&store.KV{key, value}) {
+					break
+				}
+
+				if store.Limit(limit).Reached(count) {
 					break
 				}
 			}

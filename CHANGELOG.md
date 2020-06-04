@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- [`core`] Added `limit` options to `store.KVStore#Prefix`.
+
+### Improved
+- [`badger`] Improved performance of `Scan` in presence of small limit value.
+- [`bigkv`] Improved performance of `BatchGet` which was sequential instead of using BigTable `ReadRows` call which is batched.
+
+### Changed
 
 * The `GetTransactionEvents` family of functions that take a transaction ID prefix, NOW REQUIRE a prefix that is an even number of hex characters (as they are converted to bytes and compared on bytes). They cannot be compared on half a byte (which a single hex character represents).  Sanitization must happen before calling this library, or those calls will panic.
 
