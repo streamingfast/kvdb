@@ -273,6 +273,35 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 	return sit
 }
 
+func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *store.Iterator {
+	sit := store.NewIterator(ctx)
+	zlog.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
+	opts := []bigtable.ReadOption{latestCellFilter}
+	if store.Limit(limit).Bounded() {
+		opts = append(opts, bigtable.LimitRows(int64(limit)))
+	}
+
+	rowRanges := make([]bigtable.RowRange, len(prefixes))
+	for i, prefix := range prefixes {
+		rowRanges[i] = bigtable.PrefixRange(string(s.withPrefix(prefix)))
+	}
+
+	go func() {
+		err := s.table.ReadRows(ctx, bigtable.RowRangeList(rowRanges), func(row bigtable.Row) bool {
+			return sit.PushItem(store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
+		}, opts...)
+
+		if err != nil {
+			sit.PushError(err)
+			return
+		}
+
+		sit.PushFinished() // there was an error there!
+	}()
+
+	return sit
+}
+
 func (s *Store) withPrefix(key []byte) []byte {
 	if len(s.keyPrefix) == 0 {
 		return key

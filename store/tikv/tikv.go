@@ -206,6 +206,73 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 	return sit
 }
 
+func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *store.Iterator {
+	sit := store.NewIterator(ctx)
+	zlog.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
+
+	sliceSize := 100
+	if store.Limit(limit).Bounded() && limit < sliceSize {
+		sliceSize = limit
+	}
+
+	// TODO: The native tikv client does not support batch scanning of multiple ranges of
+	//       keys. While it's possible starting multiple goroutines that scans multiple
+	//       ranges in parallel, this breaks the expected semantics of `BatchPrefix` that
+	//       you receive the set of keys for first prefix, than for second and forward.
+	//
+	//       Using dhammer here for example could be possible to linearize results respecting
+	//       order of received prefixes, but at the expense of storing more data in memory
+	//       until the ordered keys are ready.
+	//
+	//       Another possibility would be to accept an option that would tell us that order
+	//       does not matter and that caller is ok receiving keys in any order. It think this
+	//       would be the best option for TiKV.
+	go func() {
+		count := uint64(0)
+
+	outmost:
+		for _, prefix := range prefixes {
+			startKey := s.withPrefix(prefix)
+			exclusiveEnd := key.Key(startKey).PrefixNext()
+
+			if len(startKey) == 0 {
+				startKey = []byte{0x00}
+				exclusiveEnd = nil
+			}
+
+			for {
+				keys, values, err := s.client.Scan(ctx, startKey, exclusiveEnd, sliceSize)
+				if err != nil {
+					sit.PushError(err)
+					return
+				}
+
+				for idx, k := range keys {
+					count++
+
+					if !sit.PushItem(store.KV{Key: s.withoutPrefix(k), Value: values[idx]}) {
+						break outmost
+					}
+
+					if store.Limit(limit).Reached(count) {
+						break outmost
+					}
+
+					startKey = key.Key(k).Next()
+				}
+
+				if len(keys) < sliceSize {
+					break
+				}
+			}
+		}
+
+		sit.PushFinished()
+	}()
+
+	return sit
+}
+
 func (s *Store) withPrefix(key []byte) []byte {
 	if len(s.keyPrefix) == 0 {
 		return key

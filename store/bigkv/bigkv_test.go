@@ -22,9 +22,12 @@ func init() {
 }
 
 func TestAll(t *testing.T) {
-	if os.Getenv("TEST_BIGKV") != "" {
-		storetest.TestAll(t, "bigkv", newTestFactory(t))
+	if os.Getenv("TEST_BIGKV") == "" {
+		t.Skip("To run those tests, you need to have TEST_BIGKV environment variable set")
+		return
 	}
+
+	storetest.TestAll(t, "bigkv", newTestFactory(t))
 }
 
 func newTestFactory(t *testing.T) storetest.DriverFactory {

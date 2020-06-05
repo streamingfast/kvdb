@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- [`core`] Added `BatchPrefix` method on `store.KVStore`. It's now possible to perform multiple prefix scan on a single batch. Driver not supporting natively the functionality degrades to a sequential call to standard prefix capabilities.
 - [`core`] **BREAKING** Added `limit` options to `store.KVStore#Prefix`.
 - [`core`] **BREAKING** Function `store.Iterator#Next` return's type is now `store.KV`, previously `*store.KV`.
 - [`core`] **BREAKING** Function `store.Iterator#PushItem` `item` argument's type is now `store.KV`, previously `*store.KV`.

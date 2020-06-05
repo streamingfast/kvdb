@@ -219,7 +219,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 
 func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Iterator {
 	kr := store.NewIterator(ctx)
-	zlog.Debug("prefix scanning ", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
+	zlog.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
 	go func() {
 		err := s.db.View(func(txn *badger.Txn) error {
 			options := badger.DefaultIteratorOptions
@@ -255,6 +255,61 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 			}
 			return nil
 		})
+		if err != nil {
+			kr.PushError(err)
+			return
+		}
+
+		kr.PushFinished()
+	}()
+
+	return kr
+}
+
+func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *store.Iterator {
+	kr := store.NewIterator(ctx)
+	zlog.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
+
+	go func() {
+		err := s.db.View(func(txn *badger.Txn) error {
+			options := badger.DefaultIteratorOptions
+			if store.Limit(limit).Bounded() && limit < options.PrefetchSize {
+				options.PrefetchSize = limit
+			}
+
+			it := txn.NewIterator(options)
+			defer it.Close()
+
+			count := uint64(0)
+		terminateLoop:
+			for _, prefix := range prefixes {
+				for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+					count++
+
+					key := it.Item().KeyCopy(nil)
+					value, err := it.Item().ValueCopy(nil)
+					if err != nil {
+						return err
+					}
+
+					value, err = s.compressor.Decompress(value)
+					if err != nil {
+						return err
+					}
+
+					if !kr.PushItem(store.KV{Key: key, Value: value}) {
+						break terminateLoop
+					}
+
+					if store.Limit(limit).Reached(count) {
+						break terminateLoop
+					}
+				}
+			}
+
+			return nil
+		})
+
 		if err != nil {
 			kr.PushError(err)
 			return

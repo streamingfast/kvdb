@@ -14,7 +14,9 @@ type KVStore interface {
 	BatchGet(ctx context.Context, keys [][]byte) *Iterator
 
 	Scan(ctx context.Context, start, exclusiveEnd []byte, limit int) *Iterator
+
 	Prefix(ctx context.Context, prefix []byte, limit int) *Iterator
+	BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *Iterator
 }
 
 type ReversibleKVStore interface {
