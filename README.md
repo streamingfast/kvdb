@@ -21,6 +21,10 @@ The following DSNs are provided by this package:
 * TiKV:   `tikv://pd0,pd1,pd2:2379?prefix=namespace_prefix`
 * Google Cloud BigTable: `bigkv://project.instance/namespace-prefix?createTables=true`
 
+**Beware** that the TiKV backend does not support 0-length values. Design
+your client code accordingly (like we did in FluxDB).
+
+
 ## Contributing
 
 **Issues and PR in this repo related strictly to the kvdb library.**
