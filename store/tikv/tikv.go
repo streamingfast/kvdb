@@ -13,12 +13,18 @@ import (
 	"go.uber.org/zap"
 )
 
+const emptyByte = 0x00
+
 type Store struct {
 	client       *rawkv.Client
 	clientConfig config.Config
 	keyPrefix    []byte
 
 	batchPut *store.BatchPut
+	// TIKV does not support empty values, if this flag is set
+	// tikv will prepend an empty byte on write and remove the first byte
+	// on read to ensure that no empty value is written to the db
+	emptyValuePossible bool
 }
 
 func init() {
@@ -29,7 +35,7 @@ func init() {
 }
 
 // NewStore supports tikv://pd0,pd1,pd2:2379?prefix=hexkeyprefix
-func NewStore(dsnString string) (store.KVStore, error) {
+func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 	dsn, err := url.Parse(dsnString)
 	if err != nil {
 		return nil, err
@@ -60,6 +66,12 @@ func NewStore(dsnString string) (store.KVStore, error) {
 
 	s.keyPrefix = []byte(keyPrefix)
 
+	for _, opt := range opts {
+		if opt == store.WithEmptyValueSupport {
+			s.emptyValuePossible = true
+		}
+	}
+
 	return s, nil
 }
 
@@ -68,7 +80,8 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
-	s.batchPut.Put(s.withPrefix(key), value)
+
+	s.batchPut.Put(s.withPrefix(key), s.formatValue(value))
 	if s.batchPut.ShouldFlush() {
 		return s.FlushPuts(ctx)
 	}
@@ -87,7 +100,7 @@ func (s *Store) FlushPuts(ctx context.Context) error {
 	for idx, kv := range kvs {
 		k := kv.Key
 		keys[idx] = k
-		values[idx] = kv.Value
+		values[idx] = s.formatValue(kv.Value)
 	}
 	err := s.client.BatchPut(ctx, keys, values)
 	if err != nil {
@@ -119,7 +132,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 				return
 			}
 
-			if !kr.PushItem(store.KV{key, val}) {
+			if !kr.PushItem(store.KV{key, s.formatValue(val)}) {
 				break
 			}
 		}
@@ -145,7 +158,12 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 			return
 		}
 		for idx, key := range keys {
-			if !sit.PushItem(store.KV{s.withoutPrefix(key), values[idx]}) {
+
+			formattedValue := values[idx]
+			if s.emptyValuePossible {
+				formattedValue = values[idx][1:]
+			}
+			if !sit.PushItem(store.KV{s.withoutPrefix(key), formattedValue}) {
 				break
 			}
 		}
@@ -185,7 +203,12 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 			for idx, k := range keys {
 				count++
 
-				if !sit.PushItem(store.KV{s.withoutPrefix(k), values[idx]}) {
+				formattedValue := values[idx]
+				if s.emptyValuePossible {
+					formattedValue = values[idx][1:]
+				}
+
+				if !sit.PushItem(store.KV{s.withoutPrefix(k), formattedValue}) {
 					break outmost
 				}
 
@@ -250,7 +273,7 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *
 				for idx, k := range keys {
 					count++
 
-					if !sit.PushItem(store.KV{Key: s.withoutPrefix(k), Value: values[idx]}) {
+					if !sit.PushItem(store.KV{Key: s.withoutPrefix(k), Value: s.formatValue(values[idx])}) {
 						break outmost
 					}
 
@@ -288,4 +311,12 @@ func (s *Store) withoutPrefix(key []byte) []byte {
 		return key
 	}
 	return key[len(s.keyPrefix):]
+}
+
+
+func (s *Store) formatValue(v []byte) []byte {
+	if s.emptyValuePossible {
+		return append([]byte{emptyByte}, v...)
+	}
+	return v
 }

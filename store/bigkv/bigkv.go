@@ -35,7 +35,7 @@ func init() {
 }
 
 // NewStore supports bigkt://project.instance/tableName?createTable=true
-func NewStore(dsnString string) (store.KVStore, error) {
+func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 	dsn, err := url.Parse(dsnString)
 	if err != nil {
 		return nil, err

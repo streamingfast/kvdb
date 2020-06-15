@@ -28,7 +28,7 @@ func init() {
 	})
 }
 
-func NewStore(dsnString string) (store.KVStore, error) {
+func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 	dsn, err := url.Parse(dsnString)
 	if err != nil {
 		return nil, fmt.Errorf("badger new: dsn: %w", err)
