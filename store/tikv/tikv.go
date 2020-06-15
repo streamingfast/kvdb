@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const emptyBytes = 0x00
+const emptyByte = 0x00
 
 type Store struct {
 	client       *rawkv.Client
@@ -67,7 +67,7 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 	s.keyPrefix = []byte(keyPrefix)
 
 	for _, opt := range opts {
-		if opt == store.OptionEmptyValueEnable {
+		if opt == store.WithEmptyValueSupport {
 			s.emptyValuePossible = true
 		}
 	}
@@ -80,12 +80,8 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
-	formattedValue := value
-	if s.emptyValuePossible {
-		formattedValue = append([]byte{emptyBytes},value...)
-	}
 
-	s.batchPut.Put(s.withPrefix(key), formattedValue)
+	s.batchPut.Put(s.withPrefix(key), s.formatValue(value))
 	if s.batchPut.ShouldFlush() {
 		return s.FlushPuts(ctx)
 	}
@@ -104,13 +100,7 @@ func (s *Store) FlushPuts(ctx context.Context) error {
 	for idx, kv := range kvs {
 		k := kv.Key
 		keys[idx] = k
-
-		if s.emptyValuePossible {
-			values[idx] = append([]byte{emptyBytes},kv.Value...)
-		} else {
-			values[idx] = kv.Value
-		}
-
+		values[idx] = s.formatValue(kv.Value)
 	}
 	err := s.client.BatchPut(ctx, keys, values)
 	if err != nil {
@@ -142,12 +132,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 				return
 			}
 
-			formattedValue := val
-			if s.emptyValuePossible {
-				formattedValue = val[1:]
-			}
-
-			if !kr.PushItem(store.KV{key, formattedValue}) {
+			if !kr.PushItem(store.KV{key, s.formatValue(val)}) {
 				break
 			}
 		}
@@ -288,12 +273,7 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *
 				for idx, k := range keys {
 					count++
 
-					formattedValue := values[idx]
-					if s.emptyValuePossible {
-						formattedValue = values[idx][1:]
-					}
-
-					if !sit.PushItem(store.KV{Key: s.withoutPrefix(k), Value: formattedValue}) {
+					if !sit.PushItem(store.KV{Key: s.withoutPrefix(k), Value: s.formatValue(values[idx])}) {
 						break outmost
 					}
 
@@ -331,4 +311,12 @@ func (s *Store) withoutPrefix(key []byte) []byte {
 		return key
 	}
 	return key[len(s.keyPrefix):]
+}
+
+
+func (s *Store) formatValue(v []byte) []byte {
+	if s.emptyValuePossible {
+		return append([]byte{emptyByte}, v...)
+	}
+	return v
 }

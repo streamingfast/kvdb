@@ -14,7 +14,7 @@ const (
 	// be empty ( i.e. flux writing keys with no values to signify deletion)
 	// in which case said driver woudl take that into account when
 	// writing and reading data
-	OptionEmptyValueEnable Option = "OptionEmptyValueEnable"
+	WithEmptyValueSupport Option = "WithEmptyValueSupport"
 )
 
 
@@ -39,13 +39,13 @@ func Register(reg *Registration) {
 	registry[reg.Name] = reg
 }
 
-func New(dsn string) (KVStore, error) {
+func New(dsn string, opts ...Option) (KVStore, error) {
 	chunks := strings.Split(dsn, ":")
 	reg, found := registry[chunks[0]]
 	if !found {
 		return nil, fmt.Errorf("no such kv store registered %q", chunks[0])
 	}
-	return reg.FactoryFunc(dsn)
+	return reg.FactoryFunc(dsn, opts...)
 }
 
 // ByName returns a registered store driver
