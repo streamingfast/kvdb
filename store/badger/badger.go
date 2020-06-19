@@ -104,14 +104,18 @@ func (s *Store) FlushPuts(ctx context.Context) error {
 	return nil
 }
 
+func wrapNotFoundError(err error) error {
+	if err == badger.ErrKeyNotFound {
+		return store.ErrNotFound
+	}
+	return err
+}
+
 func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
 	err = s.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
 		if err != nil {
-			if err == badger.ErrKeyNotFound {
-				return store.ErrNotFound
-			}
-			return err
+			return wrapNotFoundError(err)
 		}
 
 		// TODO: optimize: if we're going to decompress, we can use the `item.Value` instead
@@ -139,7 +143,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 			for _, key := range keys {
 				item, err := txn.Get(key)
 				if err != nil {
-					return err
+					return wrapNotFoundError(err)
 				}
 
 				value, err := item.ValueCopy(nil)
@@ -162,7 +166,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 			return nil
 		})
 		if err != nil {
-			kr.PushError(err)
+			kr.PushError(wrapNotFoundError(err))
 			return
 		}
 		kr.PushFinished()
