@@ -3,18 +3,26 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v0.0.1]
 
 ### Changed
 - [`core`] Added `BatchPrefix` method on `store.KVStore`. It's now possible to perform multiple prefix scan on a single batch. Driver not supporting natively the functionality degrades to a sequential call to standard prefix capabilities.
 - [`core`] **BREAKING** Added `limit` options to `store.KVStore#Prefix`.
 - [`core`] **BREAKING** Function `store.Iterator#Next` return's type is now `store.KV`, previously `*store.KV`.
 - [`core`] **BREAKING** Function `store.Iterator#PushItem` `item` argument's type is now `store.KV`, previously `*store.KV`.
+- [`tikv`] Added 'OptionEmptyValueEnable' to let the driver simulate empty values by adding a little byte to every row
+- **BREAKING** Removed explicit compression (just use built-in from each db), only kept within badger for backward-compatibility
 
 ### Improved
 - [`core`] Reduced memory allocations when receiving items from iterators.
 - [`badger`] Improved performance of `Scan` in presence of small limit value.
 - [`bigkv`] Improved performance of `BatchGet` which was sequential instead of using BigTable `ReadRows` call which is batched.
+
+### Fixed
+
+- [`badger`] Fixed returning proper store.NotFoundErrors on 'BatchGet'
+
+## [pre-open-sourcing]
 
 ### Changed
 
