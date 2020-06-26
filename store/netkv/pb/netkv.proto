@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package dfuse.netkv.v1;
+
+option go_package = "pbnetkv";
+
+service NetKV {
+  rpc BatchPut(KeyValues) returns (EmptyResponse);
+
+  // TODO: we need to be able to get individual responses
+  // regarding Not-Foundness of each key, otherwise, we'll have
+  // a hard time knowing which key was not found, etc..
+  // This will happen more with sparse trxdb.
+  rpc BatchGet(Keys) returns (stream KeyValue);
+
+  rpc Scan(ScanRequest) returns (stream KeyValue);
+  rpc BatchScan(BatchScanRequest) returns (stream KeyValue);
+
+  rpc Prefix(PrefixRequest) returns (stream KeyValue);
+  rpc BatchPrefix(BatchPrefixRequest) returns (stream KeyValue);
+}
+
+message KeyValue {
+  bytes key = 1;
+  bytes value = 2;
+  // bool not_found = 3; ??
+}
+
+message KeyValues {
+  repeated KeyValue kvs = 1;
+}
+
+message Keys {
+  repeated bytes keys = 1;
+}
+
+message Values {
+  repeated bytes values = 1;
+}
+
+message ScanRequest {
+  bytes start = 1;
+  bytes exclusive_end = 2;
+  uint64 limit = 3;
+}
+
+message BatchPrefixRequest {
+  repeated bytes prefixes = 1;
+  uint64 limit_per_prefix = 2;
+}
+
+message BatchScanRequest {
+  repeated bytes start = 1;
+  repeated bytes exclusive_end = 2;
+  uint64 limit_per_scan = 3;
+}
+
+message PrefixRequest {
+  bytes prefix = 1;
+  uint64 limit = 2;
+}
+
+message EmptyResponse {
+}

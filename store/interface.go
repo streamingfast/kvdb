@@ -19,6 +19,7 @@ type KVStore interface {
 	BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *Iterator
 }
 
+// ReversibleKVStore is not currently used.  Was to be an optimization to avoid writing block numbers twice (to search the timeline), for stores that support reverse scans (unlike Bigtable).
 type ReversibleKVStore interface {
 	ReverseScan(ctx context.Context, start, exclusiveEnd []byte, limit int) *Iterator
 	ReversePrefix(ctx context.Context, prefix []byte, limit int) *Iterator
