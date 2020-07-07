@@ -17,6 +17,13 @@ type KVStore interface {
 
 	Prefix(ctx context.Context, prefix []byte, limit int) *Iterator
 	BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *Iterator
+
+	// Close the underlying store engine and clear up any resources currently hold
+	// by this instance.
+	//
+	// Once this instance's `Close` method has been called, it's assumed to be terminated
+	// and cannot be reliably used to perform read/write operation on the backing engine.
+	Close() error
 }
 
 // ReversibleKVStore is not currently used.  Was to be an optimization to avoid writing block numbers twice (to search the timeline), for stores that support reverse scans (unlike Bigtable).

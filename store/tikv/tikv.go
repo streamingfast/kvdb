@@ -313,7 +313,6 @@ func (s *Store) withoutPrefix(key []byte) []byte {
 	return key[len(s.keyPrefix):]
 }
 
-
 func (s *Store) formatValue(v []byte) []byte {
 	if s.emptyValuePossible {
 		return append([]byte{emptyByte}, v...)
