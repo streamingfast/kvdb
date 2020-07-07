@@ -13,7 +13,7 @@ func RemoveDSNOptions(dsn string, keys ...string) (string, error) {
 		return "", err
 	}
 
-	RemoveDSNOptionsFromURL(dsnURL, keys...)
+	removeDSNOptionsFromURL(dsnURL, keys)
 	return dsnURL.String(), nil
 }
 
@@ -22,9 +22,24 @@ func RemoveDSNOptions(dsn string, keys ...string) (string, error) {
 //
 // For example, transforms `kv://path?option1=value&option2=test&option3=any` to
 // `kv://path?option2=test` when passing `option1` and `option3` as the keys.
-//
-// *Note** This transforms the URL receive in place!
-func RemoveDSNOptionsFromURL(dsnURL *url.URL, keys ...string) {
+func RemoveDSNOptionsFromURL(dsnURL *url.URL, keys ...string) *url.URL {
+	copy := &url.URL{
+		Scheme:     dsnURL.Scheme,
+		Opaque:     dsnURL.Opaque,
+		User:       dsnURL.User,
+		Host:       dsnURL.Host,
+		Path:       dsnURL.Path,
+		RawPath:    dsnURL.RawPath,
+		ForceQuery: dsnURL.ForceQuery,
+		RawQuery:   dsnURL.RawQuery,
+		Fragment:   dsnURL.Fragment,
+	}
+
+	removeDSNOptionsFromURL(copy, keys)
+	return copy
+}
+
+func removeDSNOptionsFromURL(dsnURL *url.URL, keys []string) {
 	query := dsnURL.Query()
 	if len(query) <= 0 {
 		return
