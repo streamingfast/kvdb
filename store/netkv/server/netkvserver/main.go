@@ -24,7 +24,7 @@ func main() {
 	pwd, _ := os.Getwd()
 	backendDSN := strings.Replace(*flagBackendDSN, "//./", fmt.Sprintf("//%s/", pwd), 1)
 
-	srv, err := netkvserver.New(*flagListenAddr, backendDSN)
+	srv, err := netkvserver.Launch(*flagListenAddr, backendDSN)
 	if err != nil {
 		fmt.Println("Error:", err)
 		os.Exit(1)

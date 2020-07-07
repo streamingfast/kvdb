@@ -4,14 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net/url"
-	"os"
-	"path/filepath"
-
 	"github.com/dfuse-io/kvdb/store"
 	"github.com/dgraph-io/badger/v2"
 	"github.com/dgraph-io/badger/v2/options"
 	"go.uber.org/zap"
+	"net/url"
+	"os"
+	"path/filepath"
 )
 
 type Store struct {
@@ -59,8 +58,13 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 		db:         db,
 		compressor: compressor,
 	}
+	s2 := store.KVStore(s)
 
-	return s, nil
+	for _,opt  := range opts {
+		opt(&s2)
+	}
+
+	return s2, nil
 }
 
 func (s *Store) Close() error {
@@ -134,6 +138,32 @@ func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
 	})
 	return
 }
+
+func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) (err error) {
+	zlog.Debug("batch deletion", zap.Int("key_count", len(keys)))
+	deletionBatch := s.db.NewWriteBatch()
+	for _, key := range keys {
+		err = deletionBatch.Delete(key)
+		if err == badger.ErrTxnTooBig {
+			zlog.Debug("txn too big pre-emptively pushing")
+			if err := deletionBatch.Flush(); err != nil {
+				return err
+			}
+
+			deletionBatch = s.db.NewWriteBatch()
+			err := deletionBatch.Delete(key)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	if deletionBatch == nil {
+		return nil
+	}
+	return deletionBatch.Flush()
+}
+
 
 func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 	kr := store.NewIterator(ctx)

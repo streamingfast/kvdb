@@ -20,7 +20,7 @@ type Store struct {
 	clientConfig config.Config
 	keyPrefix    []byte
 
-	batchPut *store.BatchPut
+	batchPut *store.BachOp
 	// TIKV does not support empty values, if this flag is set
 	// tikv will prepend an empty byte on write and remove the first byte
 	// on read to ensure that no empty value is written to the db
@@ -56,7 +56,7 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 	s := &Store{
 		client:       client,
 		clientConfig: rawConfig,
-		batchPut:     store.NewBatchPut(70000000, 0, 0),
+		batchPut:     store.NewBatchOp(70000000, 0, 0),
 	}
 
 	keyPrefix := strings.Trim(dsn.Path, "/") + ";"
@@ -66,13 +66,13 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 
 	s.keyPrefix = []byte(keyPrefix)
 
-	for _, opt := range opts {
-		if opt == store.WithEmptyValueSupport {
-			s.emptyValuePossible = true
-		}
+	s2 := store.KVStore(s)
+
+	for _,opt  := range opts {
+		opt(&s2)
 	}
 
-	return s, nil
+	return s2, nil
 }
 
 func (s *Store) Close() error {
@@ -81,7 +81,7 @@ func (s *Store) Close() error {
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 
-	s.batchPut.Put(s.withPrefix(key), s.formatValue(value))
+	s.batchPut.Op(s.withPrefix(key), s.formatValue(value))
 	if s.batchPut.ShouldFlush() {
 		return s.FlushPuts(ctx)
 	}

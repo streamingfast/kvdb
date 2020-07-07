@@ -24,7 +24,11 @@ type Store struct {
 	keyPrefix []byte
 	tableName string
 
-	batchPut *store.BatchPut
+	maxBytesBeforeFlush uint64
+	maxRowsBeforeFlush uint64
+	maxSecondsBeforeFlush uint64
+
+	batchPut *store.BachOp
 }
 
 func init() {
@@ -87,7 +91,10 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 
 	s := &Store{
 		client:   client,
-		batchPut: store.NewBatchPut(int(maxBytesBeforeFlush), int(maxRowsBeforeFlush), time.Duration(maxSecondsBeforeFlush)*time.Second),
+		batchPut: store.NewBatchOp(int(maxBytesBeforeFlush), int(maxRowsBeforeFlush), time.Duration(maxSecondsBeforeFlush)*time.Second),
+		maxBytesBeforeFlush: maxBytesBeforeFlush,
+		maxRowsBeforeFlush: maxRowsBeforeFlush,
+		maxSecondsBeforeFlush: maxSecondsBeforeFlush,
 	}
 
 	if keyPrefix := dsn.Query().Get("keyPrefix"); keyPrefix != "" {
@@ -122,7 +129,13 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 		}
 	}
 
-	return s, nil
+	s2 := store.KVStore(s)
+
+	for _,opt  := range opts {
+		opt(&s2)
+	}
+
+	return s2, nil
 }
 
 func isAlreadyExistsError(err error) bool {
@@ -139,7 +152,7 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
-	s.batchPut.Put(s.withPrefix(key), value)
+	s.batchPut.Op(s.withPrefix(key), value)
 	if s.batchPut.ShouldFlush() {
 		return s.FlushPuts(ctx)
 	}
@@ -208,6 +221,43 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 	}()
 
 	return kr
+}
+
+func (s *Store) BatchDelete(ctx context.Context, deletionKeys [][]byte) (err error) {
+	if len(deletionKeys) == 0 {
+		return nil
+	}
+	batch := store.NewBatchOp(int(s.maxBytesBeforeFlush), int(s.maxRowsBeforeFlush), time.Duration(s.maxSecondsBeforeFlush)*time.Second)
+	keys := make([]string, len(deletionKeys))
+	values := make([]*bigtable.Mutation, len(deletionKeys))
+	for idx, deletionKey := range deletionKeys {
+		if batch.ShouldFlush() {
+			errs, err := s.table.ApplyBulk(ctx, keys, values)
+			if err != nil {
+				return err
+			}
+			if len(errs) != 0 {
+				return fmt.Errorf("apply bulk error: %s", errs)
+			}
+			keys = make([]string, len(deletionKeys))
+			values = make([]*bigtable.Mutation, len(deletionKeys))
+		}
+		batch.Op(deletionKey, []byte{0x00})
+		keys[idx] = string(deletionKey)
+		mut := bigtable.NewMutation()
+		mut.DeleteRow()
+		values[idx] = mut
+	}
+	if len(batch.GetBatch()) > 0  {
+		errs, err := s.table.ApplyBulk(ctx, keys, values)
+		if err != nil {
+			return err
+		}
+		if len(errs) != 0 {
+			return fmt.Errorf("apply bulk error: %s", errs)
+		}
+	}
+	return nil
 }
 
 func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int) *store.Iterator {

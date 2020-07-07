@@ -23,12 +23,12 @@ func TestAll(t *testing.T) {
 		return
 	}
 
-	storetest.TestAll(t, "tikv", newTestFactory(t))
+	storetest.TestAll(t, "tikv", newTestFactory(t), false)
 }
 
 func newTestFactory(t *testing.T) storetest.DriverFactory {
-	return func() (store.KVStore, storetest.DriverCleanupFunc) {
-		kvStore, err := NewStore("tikv://localhost:2379/data")
+	return func(opts ...store.Option) (store.KVStore, storetest.DriverCleanupFunc) {
+		kvStore, err := NewStore("tikv://localhost:2379/data", opts...)
 		if err != nil {
 			t.Skip(fmt.Errorf("pd0 unreachable, cannot run tests: %w", err)) // FIXME: this just times out
 			return nil, nil

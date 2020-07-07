@@ -2,21 +2,26 @@ package store
 
 import (
 	"fmt"
-	"strings"
-
 	"go.uber.org/zap"
+	"strings"
 )
 
-type Option string
-const (
-	// TIKV does not support empty values, thus the consumer of KVDB needs
-	// to let the underlying driver (i.e. TIVK) know that the values may
-	// be empty ( i.e. flux writing keys with no values to signify deletion)
-	// in which case said driver woudl take that into account when
-	// writing and reading data
-	WithEmptyValueSupport Option = "WithEmptyValueSupport"
-)
+type Option func(s *KVStore)
 
+func WithPurgeableStore(tablePrefix []byte,  ttlInBlocks uint64) Option {
+	return func(s *KVStore) {
+		*s = NewPurgeableStore(tablePrefix, *s, ttlInBlocks)
+	}
+}
+
+func WithEmptyValue() Option {
+	return func(s *KVStore) {
+		str := *s
+		if store, ok := str.(EmptyValueEnabler); ok {
+			store.EnableEmpty()
+		}
+	}
+}
 
 
 // NewStoreFunc is a function for opening a databse.

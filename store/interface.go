@@ -2,6 +2,11 @@ package store
 
 import "context"
 
+type Purgeable interface {
+	MarkCurrentHeight(height uint64)
+	PurgeKeys(ctx context.Context) error
+}
+
 type KVStore interface {
 	// Put writes to a transaction, which might be flushed from time to time. Call FlushPuts() to ensure all Put entries are properly written to the database.
 	Put(ctx context.Context, key, value []byte) (err error)
@@ -18,6 +23,7 @@ type KVStore interface {
 	Prefix(ctx context.Context, prefix []byte, limit int) *Iterator
 	BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *Iterator
 
+
 	// Close the underlying store engine and clear up any resources currently hold
 	// by this instance.
 	//
@@ -30,4 +36,13 @@ type KVStore interface {
 type ReversibleKVStore interface {
 	ReverseScan(ctx context.Context, start, exclusiveEnd []byte, limit int) *Iterator
 	ReversePrefix(ctx context.Context, prefix []byte, limit int) *Iterator
+}
+
+type Deletable interface {
+	// Delete a batch of keys
+	BatchDelete(ctx context.Context, keys [][]byte) (err error)
+}
+
+type EmptyValueEnabler interface{
+	EnableEmpty()
 }

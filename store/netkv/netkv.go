@@ -55,7 +55,13 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 		client: client,
 	}
 
-	return s, nil
+	s2 := store.KVStore(s)
+
+	for _,opt  := range opts {
+		opt(&s2)
+	}
+
+	return s2, nil
 }
 
 func (s *Store) Close() error {
