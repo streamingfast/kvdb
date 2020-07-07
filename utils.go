@@ -161,16 +161,3 @@ func ReversedBlockID(blockID string) string {
 func ReversedUint16(input uint16) uint16 {
 	return math.MaxUint16 - input
 }
-
-// BlockIdentifier is present only for testing purposes. This
-// wrap a string of the format `<Num><letter>` and add block ref
-// methods `Num` and `ID`. This way in tests, it's easy to create
-// block identifier for example `1a` or `3c` to represents blocks
-// num + id consicely.
-type BlockIdentifier string
-
-func (i BlockIdentifier) ID() string { return string(i) }
-func (i BlockIdentifier) Num() (out uint64) {
-	out, _ = strconv.ParseUint(string(i)[0:1], 10, 64)
-	return
-}
