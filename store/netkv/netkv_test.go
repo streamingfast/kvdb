@@ -30,7 +30,7 @@ func newTestNetKVFactory(t *testing.T) storetest.DriverFactory {
 
 		// Setup the `netkv` client, and test it.
 		dsn2 := fmt.Sprintf("netkv://localhost:65112?insecure=true")
-		kvStore, err := NewStore(dsn2, opts...)
+		kvStore, err := store.New(dsn2, opts...)
 		require.NoError(t, err)
 
 		return kvStore, func() {

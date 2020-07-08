@@ -21,7 +21,7 @@ func NewTestBadgerFactory(t *testing.T, testDBFilename string) storetest.DriverF
 		dir, err := ioutil.TempDir("", "kvdb-badger")
 		require.NoError(t, err)
 		dsn := fmt.Sprintf("badger://%s", path.Join(dir, testDBFilename))
-		kvStore, err := NewStore(dsn, opts...)
+		kvStore, err := store.New(dsn, opts...)
 		require.NoError(t, err)
 		return kvStore, func() {
 			err := os.RemoveAll(dir)

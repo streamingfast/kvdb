@@ -24,12 +24,12 @@ type Store struct {
 	keyPrefix []byte
 	tableName string
 
-	maxBytesBeforeFlush uint64
-	maxRowsBeforeFlush uint64
+	maxBytesBeforeFlush   uint64
+	maxRowsBeforeFlush    uint64
 	maxSecondsBeforeFlush uint64
 
 	batchPut *store.BachOp
-	zlogger *zap.Logger
+	zlogger  *zap.Logger
 }
 
 func init() {
@@ -40,7 +40,7 @@ func init() {
 }
 
 // NewStore supports bigkt://project.instance/tableName?createTable=true
-func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
+func NewStore(dsnString string, opts ...store.Option) (store.ConfigurableKVStore, error) {
 	dsn, err := url.Parse(dsnString)
 	if err != nil {
 		return nil, err
@@ -91,12 +91,12 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 	}
 
 	s := &Store{
-		client:   client,
-		batchPut: store.NewBatchOp(int(maxBytesBeforeFlush), int(maxRowsBeforeFlush), time.Duration(maxSecondsBeforeFlush)*time.Second),
-		maxBytesBeforeFlush: maxBytesBeforeFlush,
-		maxRowsBeforeFlush: maxRowsBeforeFlush,
+		client:                client,
+		batchPut:              store.NewBatchOp(int(maxBytesBeforeFlush), int(maxRowsBeforeFlush), time.Duration(maxSecondsBeforeFlush)*time.Second),
+		maxBytesBeforeFlush:   maxBytesBeforeFlush,
+		maxRowsBeforeFlush:    maxRowsBeforeFlush,
 		maxSecondsBeforeFlush: maxSecondsBeforeFlush,
-		zlogger: zap.NewNop(),
+		zlogger:               zap.NewNop(),
 	}
 
 	if keyPrefix := dsn.Query().Get("keyPrefix"); keyPrefix != "" {
@@ -115,29 +115,23 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 	if createTable {
 		adminClient, err := bigtable.NewAdminClient(ctx, project, instance)
 		if err != nil {
-			zlog.Error("failed setting up admin client", zap.Error(err))
+			return nil, fmt.Errorf("failed setting up admin client: %w", err)
 		}
 
 		if err := adminClient.CreateTable(ctx, tableName); err != nil && !isAlreadyExistsError(err) {
-			zlog.Error("failed creating table", zap.String("name", tableName), zap.Error(err))
+			return nil, fmt.Errorf("failed creating table %q: %w", tableName, err)
 		}
 
 		if err := adminClient.CreateColumnFamily(ctx, tableName, "kv"); err != nil && !isAlreadyExistsError(err) {
-			zlog.Error("failed creating 'kv' family", zap.String("table_name", tableName), zap.Error(err))
+			return nil, fmt.Errorf("failed creating 'kv' family for table %q: %w", tableName, err)
 		}
 
 		if err := adminClient.SetGCPolicy(ctx, tableName, "kv", bigtable.MaxVersionsPolicy(1)); err != nil {
-			zlog.Error("failed applying gc policy to 'kv' family", zap.String("table_name", tableName), zap.Error(err))
+			return nil, fmt.Errorf("failed applying gc policy to 'kv' family for table %q: %w", tableName, err)
 		}
 	}
 
-	s2 := store.KVStore(s)
-
-	for _,opt  := range opts {
-		opt(&s2)
-	}
-
-	return s2, nil
+	return s, nil
 }
 
 func isAlreadyExistsError(err error) bool {
@@ -250,7 +244,7 @@ func (s *Store) BatchDelete(ctx context.Context, deletionKeys [][]byte) (err err
 		mut.DeleteRow()
 		values[idx] = mut
 	}
-	if len(batch.GetBatch()) > 0  {
+	if len(batch.GetBatch()) > 0 {
 		errs, err := s.table.ApplyBulk(ctx, keys, values)
 		if err != nil {
 			return err

@@ -4,27 +4,28 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+
 	"go.uber.org/zap"
 )
 
 var PurgeableMaxBatchSize = 500
 
 type PurgeableKVStore struct {
-	KVStore
+	ConfigurableKVStore
 	tablePrefix []byte // 0x09
 	height      uint64 // ecah time you're writing a block, startby  marking this block so all keys wehre we call "Put()"
 	heightSet   bool
 	ttlInBlocks uint64
 }
 
-func NewPurgeableStore(tablePrefix []byte, store KVStore, ttlInBlocks uint64) *PurgeableKVStore {
+func NewPurgeableStore(tablePrefix []byte, store ConfigurableKVStore, ttlInBlocks uint64) *PurgeableKVStore {
 	if _, ok := store.(Deletable); !ok {
 		panic("Purgeable KVStores requires a Deletable KVStore (implements `BatchDelete`)")
 	}
 	return &PurgeableKVStore{
-		KVStore:     store,
-		tablePrefix: tablePrefix,
-		ttlInBlocks: ttlInBlocks,
+		ConfigurableKVStore: store,
+		tablePrefix:         tablePrefix,
+		ttlInBlocks:         ttlInBlocks,
 	}
 }
 
@@ -32,13 +33,13 @@ func (s *PurgeableKVStore) Put(ctx context.Context, key, value []byte) error {
 	if !s.heightSet {
 		panic("ephemeral kv store height not set")
 	}
-	if err := s.KVStore.Put(ctx, key, value); err != nil {
+	if err := s.ConfigurableKVStore.Put(ctx, key, value); err != nil {
 		return err
 	}
 
 	deletionKey := s.deletionKey(s.height, key)
 
-	if err := s.KVStore.Put(ctx, deletionKey, []byte{0x00}); err != nil {
+	if err := s.ConfigurableKVStore.Put(ctx, deletionKey, []byte{0x00}); err != nil {
 		return err
 	}
 	return nil
@@ -46,7 +47,7 @@ func (s *PurgeableKVStore) Put(ctx context.Context, key, value []byte) error {
 
 func (s *PurgeableKVStore) MarkCurrentHeight(height uint64) {
 	s.height = height
-	s.heightSet  = true
+	s.heightSet = true
 }
 
 func (s *PurgeableKVStore) PurgeKeys(ctx context.Context) error {
@@ -59,14 +60,14 @@ func (s *PurgeableKVStore) PurgeKeys(ctx context.Context) error {
 		zap.Uint64("high_block_num", highBlockNum),
 		zap.Uint64("low_block_num", lowBlockNum),
 	)
-	startKey := s.deletionKey(lowBlockNum,[]byte{})
-	endKey := s.deletionKey(highBlockNum,[]byte{})
+	startKey := s.deletionKey(lowBlockNum, []byte{})
+	endKey := s.deletionKey(highBlockNum, []byte{})
 
 	itr := s.Scan(ctx, startKey, endKey, Unlimited)
 	deletionKey := [][]byte{}
 	for itr.Next() {
 		if len(deletionKey) >= PurgeableMaxBatchSize {
-			err := s.KVStore.(Deletable).BatchDelete(ctx, deletionKey)
+			err := s.ConfigurableKVStore.(Deletable).BatchDelete(ctx, deletionKey)
 			if err != nil {
 				return fmt.Errorf("unable to delete batch: %w", err)
 			}
@@ -76,14 +77,13 @@ func (s *PurgeableKVStore) PurgeKeys(ctx context.Context) error {
 		deletionKey = append(deletionKey, s.originalKey(itr.Item().Key))
 	}
 	if len(deletionKey) >= 0 {
-		err := s.KVStore.(Deletable).BatchDelete(ctx, deletionKey)
+		err := s.ConfigurableKVStore.(Deletable).BatchDelete(ctx, deletionKey)
 		if err != nil {
 			return fmt.Errorf("unable to delete batch: %w", err)
 		}
 	}
 	return nil
 }
-
 
 func (s *PurgeableKVStore) deletionKey(height uint64, key []byte) []byte {
 	buf := make([]byte, 8)

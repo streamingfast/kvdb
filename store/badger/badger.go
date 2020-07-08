@@ -4,20 +4,21 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
+
 	"github.com/dfuse-io/kvdb/store"
 	"github.com/dgraph-io/badger/v2"
 	"github.com/dgraph-io/badger/v2/options"
 	"go.uber.org/zap"
-	"net/url"
-	"os"
-	"path/filepath"
 )
 
 type Store struct {
 	db         *badger.DB
 	writeBatch *badger.WriteBatch
 	compressor store.Compressor
-	zlogger *zap.Logger
+	zlogger    *zap.Logger
 }
 
 func init() {
@@ -28,7 +29,7 @@ func init() {
 	})
 }
 
-func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
+func NewStore(dsnString string, opts ...store.Option) (store.ConfigurableKVStore, error) {
 	dsn, err := url.Parse(dsnString)
 	if err != nil {
 		return nil, fmt.Errorf("badger new: dsn: %w", err)
@@ -54,15 +55,10 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 	s := &Store{
 		db:         db,
 		compressor: compressor,
-		zlogger: zap.NewNop(),
-	}
-	s2 := store.KVStore(s)
-
-	for _,opt  := range opts {
-		opt(&s2)
+		zlogger:    zap.NewNop(),
 	}
 
-	return s2, nil
+	return s, nil
 }
 
 func (s *Store) Close() error {
@@ -161,7 +157,6 @@ func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) (err error) {
 	}
 	return deletionBatch.Flush()
 }
-
 
 func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 	kr := store.NewIterator(ctx)

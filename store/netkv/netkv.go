@@ -17,7 +17,7 @@ type Store struct {
 	conn     *grpc.ClientConn
 	client   pbnetkv.NetKVClient
 	putBatch []*pbnetkv.KeyValue
-	zlogger *zap.Logger
+	zlogger  *zap.Logger
 }
 
 func init() {
@@ -28,7 +28,7 @@ func init() {
 	})
 }
 
-func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
+func NewStore(dsnString string, opts ...store.Option) (store.ConfigurableKVStore, error) {
 	dsn, err := url.Parse(dsnString)
 	if err != nil {
 		return nil, fmt.Errorf("badger new: dsn: %w", err)
@@ -48,18 +48,12 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 	client := pbnetkv.NewNetKVClient(conn)
 
 	s := &Store{
-		conn:   conn,
-		client: client,
+		conn:    conn,
+		client:  client,
 		zlogger: zap.NewNop(),
 	}
 
-	s2 := store.KVStore(s)
-
-	for _,opt  := range opts {
-		opt(&s2)
-	}
-
-	return s2, nil
+	return s, nil
 }
 
 func (s *Store) Close() error {

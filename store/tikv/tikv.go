@@ -20,7 +20,6 @@ type Store struct {
 	clientConfig config.Config
 	keyPrefix    []byte
 
-
 	batchPut *store.BachOp
 
 	// TIKV does not support empty values, if this flag is set
@@ -39,7 +38,7 @@ func init() {
 }
 
 // NewStore supports tikv://pd0,pd1,pd2:2379?prefix=hexkeyprefix
-func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
+func NewStore(dsnString string, opts ...store.Option) (store.ConfigurableKVStore, error) {
 	dsn, err := url.Parse(dsnString)
 	if err != nil {
 		return nil, err
@@ -61,7 +60,7 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 		client:       client,
 		clientConfig: rawConfig,
 		batchPut:     store.NewBatchOp(70000000, 0, 0),
-		zlogger: zap.NewNop(),
+		zlogger:      zap.NewNop(),
 	}
 
 	keyPrefix := strings.Trim(dsn.Path, "/") + ";"
@@ -71,13 +70,7 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 
 	s.keyPrefix = []byte(keyPrefix)
 
-	s2 := store.KVStore(s)
-
-	for _,opt  := range opts {
-		opt(&s2)
-	}
-
-	return s2, nil
+	return s, nil
 }
 
 func (s *Store) Close() error {

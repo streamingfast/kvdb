@@ -1,11 +1,12 @@
 package bigkv
 
 import (
-	"github.com/dfuse-io/logging"
-	"go.uber.org/zap"
 	"io"
 	"os"
 	"testing"
+
+	"github.com/dfuse-io/logging"
+	"go.uber.org/zap"
 
 	"github.com/dfuse-io/kvdb/store"
 	"github.com/dfuse-io/kvdb/store/storetest"
@@ -34,7 +35,7 @@ func TestAll(t *testing.T) {
 
 func newTestFactory(t *testing.T) storetest.DriverFactory {
 	return func(opts ...store.Option) (store.KVStore, storetest.DriverCleanupFunc) {
-		kvStore, err := NewStore("bigkv://dev.dev/dev?createTable=true", opts...)
+		kvStore, err := store.New("bigkv://dev.dev/dev?createTable=true", opts...)
 		if err != nil {
 			t.Skip("bigtable unreachable, cannot run tests") // FIXME: this just times out
 			return nil, nil

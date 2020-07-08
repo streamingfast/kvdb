@@ -15,13 +15,12 @@ import (
 type kvStoreOptions struct {
 	withPurgeable             bool
 	purgeableStoreTablePrefix []byte
-	purgeableTTLInBlocks uint64
+	purgeableTTLInBlocks      uint64
 }
 
-
 var kvstoreTests = []struct {
-	name string
-	test func(t *testing.T, driver store.KVStore, options kvStoreOptions)
+	name    string
+	test    func(t *testing.T, driver store.KVStore, options kvStoreOptions)
 	options kvStoreOptions
 }{
 	{
@@ -39,13 +38,12 @@ var kvstoreTests = []struct {
 			purgeableStoreTablePrefix: []byte{0x09},
 			purgeableTTLInBlocks:      1,
 		},
-
 	},
 }
 
 func TestAllKVStore(t *testing.T, driverName string, driverFactory DriverFactory, testPurgeableStore bool) {
 	for _, test := range kvstoreTests {
-		testName := driverName+"/"+test.name
+		testName := driverName + "/" + test.name
 		t.Run(testName, func(t *testing.T) {
 			opts := []store.Option{}
 			if test.options.withPurgeable {
@@ -63,39 +61,39 @@ func TestAllKVStore(t *testing.T, driverName string, driverFactory DriverFactory
 }
 
 func TestPurgeable(t *testing.T, driver store.KVStore, options kvStoreOptions) {
-	tests := []struct{
-		key []byte
+	tests := []struct {
+		key    []byte
 		value  []byte
 		height uint64
 	}{
 		{
-			key: []byte("a"),
-			value: []byte("1"),
+			key:    []byte("a"),
+			value:  []byte("1"),
 			height: 90,
 		},
 		{
-			key: []byte("ba"),
-			value: []byte("2"),
+			key:    []byte("ba"),
+			value:  []byte("2"),
 			height: 80,
 		},
 		{
-			key: []byte("ba1"),
-			value: []byte("3"),
+			key:    []byte("ba1"),
+			value:  []byte("3"),
 			height: 92,
 		},
 		{
-			key: []byte("ba2"),
-			value: []byte("4"),
+			key:    []byte("ba2"),
+			value:  []byte("4"),
 			height: 94,
 		},
 		{
-			key: []byte("bb"),
-			value: []byte("5"),
+			key:    []byte("bb"),
+			value:  []byte("5"),
 			height: 1085,
 		},
 		{
-			key: []byte("c"),
-			value: []byte("6"),
+			key:    []byte("c"),
+			value:  []byte("6"),
 			height: 96,
 		},
 	}
@@ -111,7 +109,8 @@ func TestPurgeable(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 	for _, test := range tests {
 		ephemeralDriver.MarkCurrentHeight(test.height)
 		err := ephemeralDriver.Put(context.Background(), test.key, test.value)
-		require.NoError(t, err)	}
+		require.NoError(t, err)
+	}
 
 	// testing Flush Put
 	err := driver.FlushPuts(context.Background())
@@ -128,7 +127,7 @@ func TestPurgeable(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 	// Ensuring that the deletions Keys are in the DB
 	for _, test := range tests {
 		// testing GET function
-		expectedDeletionKey := testDeleteKeyGenerate(t, options.purgeableStoreTablePrefix,test.height,test.key)
+		expectedDeletionKey := testDeleteKeyGenerate(t, options.purgeableStoreTablePrefix, test.height, test.key)
 		v, err := driver.Get(context.Background(), expectedDeletionKey)
 		require.NoError(t, err)
 		require.Equal(t, []byte{0x00}, v)
@@ -153,7 +152,6 @@ func TestPurgeable(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 		}
 	}
 
-
 	// Ensuring that the Deletion Keys have been purged correctly
 	for _, test := range tests {
 		// testing GET function
@@ -168,7 +166,6 @@ func TestPurgeable(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 	}
 
 }
-
 
 func TestBasic(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 	all := []store.KV{
@@ -270,7 +267,6 @@ func TestBasic(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 	testScan(t, driver, []byte("b"), nil, 1, nil)
 	testScan(t, driver, []byte("b"), testStringsToKey(""), 1, nil)
 
-
 	if deletableDriver, ok := driver.(store.Deletable); ok {
 		// testing Batch Deletion function
 		keys := [][]byte{}
@@ -280,7 +276,6 @@ func TestBasic(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 
 		err = deletableDriver.BatchDelete(context.Background(), keys)
 		require.NoError(t, err)
-
 
 		// testing GET with a flush
 		for _, kv := range all {

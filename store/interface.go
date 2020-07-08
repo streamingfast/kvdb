@@ -2,12 +2,18 @@ package store
 
 import (
 	"context"
+
 	"go.uber.org/zap"
 )
 
 type Purgeable interface {
 	MarkCurrentHeight(height uint64)
 	PurgeKeys(ctx context.Context) error
+}
+
+type ConfigurableKVStore interface {
+	KVStore
+	Configurable
 }
 
 type KVStore interface {
@@ -25,7 +31,6 @@ type KVStore interface {
 
 	Prefix(ctx context.Context, prefix []byte, limit int) *Iterator
 	BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *Iterator
-
 
 	// Close the underlying store engine and clear up any resources currently hold
 	// by this instance.
@@ -46,7 +51,7 @@ type Deletable interface {
 	BatchDelete(ctx context.Context, keys [][]byte) (err error)
 }
 
-type Configurable interface{
+type Configurable interface {
 	EnableEmpty()
 	SetLogger(logger *zap.Logger)
 }
