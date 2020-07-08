@@ -29,6 +29,7 @@ type Store struct {
 	maxSecondsBeforeFlush uint64
 
 	batchPut *store.BachOp
+	zlogger *zap.Logger
 }
 
 func init() {
@@ -95,6 +96,7 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 		maxBytesBeforeFlush: maxBytesBeforeFlush,
 		maxRowsBeforeFlush: maxRowsBeforeFlush,
 		maxSecondsBeforeFlush: maxSecondsBeforeFlush,
+		zlogger: zap.NewNop(),
 	}
 
 	if keyPrefix := dsn.Query().Get("keyPrefix"); keyPrefix != "" {
@@ -203,7 +205,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 		btKeys[i] = string(key)
 	}
 
-	zlog.Debug("batch get", zap.Int("key_count", len(btKeys)))
+	s.zlogger.Debug("batch get", zap.Int("key_count", len(btKeys)))
 	opts := []bigtable.ReadOption{latestCellFilter}
 
 	kr := store.NewIterator(ctx)
@@ -272,7 +274,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 		return sit
 	}
 
-	zlog.Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
+	s.zlogger.Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
 	opts := []bigtable.ReadOption{latestCellFilter}
 	if store.Limit(limit).Bounded() {
 		opts = append(opts, bigtable.LimitRows(int64(limit)))
@@ -299,7 +301,7 @@ var latestCellFilter = bigtable.RowFilter(latestCellOnly)
 
 func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Iterator {
 	sit := store.NewIterator(ctx)
-	zlog.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
+	s.zlogger.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
 	opts := []bigtable.ReadOption{latestCellFilter}
 	if store.Limit(limit).Bounded() {
 		opts = append(opts, bigtable.LimitRows(int64(limit)))
@@ -325,7 +327,7 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 
 func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *store.Iterator {
 	sit := store.NewIterator(ctx)
-	zlog.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
+	s.zlogger.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
 	opts := []bigtable.ReadOption{latestCellFilter}
 	if store.Limit(limit).Bounded() {
 		opts = append(opts, bigtable.LimitRows(int64(limit)))

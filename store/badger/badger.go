@@ -17,6 +17,7 @@ type Store struct {
 	db         *badger.DB
 	writeBatch *badger.WriteBatch
 	compressor store.Compressor
+	zlogger *zap.Logger
 }
 
 func init() {
@@ -32,10 +33,6 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("badger new: dsn: %w", err)
 	}
-
-	zlog.Debug("setting up badger db",
-		zap.String("dsn.path", dsnString),
-	)
 
 	createPath := filepath.Dir(dsn.Path)
 	if err := os.MkdirAll(createPath, 0755); err != nil {
@@ -57,6 +54,7 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 	s := &Store{
 		db:         db,
 		compressor: compressor,
+		zlogger: zap.NewNop(),
 	}
 	s2 := store.KVStore(s)
 
@@ -72,7 +70,7 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
-	zlog.Debug("putting", zap.Stringer("key", store.Key(key)))
+	s.zlogger.Debug("putting", zap.Stringer("key", store.Key(key)))
 	if s.writeBatch == nil {
 		s.writeBatch = s.db.NewWriteBatch()
 	}
@@ -81,7 +79,7 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 
 	err = s.writeBatch.SetEntry(badger.NewEntry(key, value))
 	if err == badger.ErrTxnTooBig {
-		zlog.Debug("txn too big pre-emptively pushing")
+		s.zlogger.Debug("txn too big pre-emptively pushing")
 		if err := s.writeBatch.Flush(); err != nil {
 			return err
 		}
@@ -140,12 +138,12 @@ func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
 }
 
 func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) (err error) {
-	zlog.Debug("batch deletion", zap.Int("key_count", len(keys)))
+	s.zlogger.Debug("batch deletion", zap.Int("key_count", len(keys)))
 	deletionBatch := s.db.NewWriteBatch()
 	for _, key := range keys {
 		err = deletionBatch.Delete(key)
 		if err == badger.ErrTxnTooBig {
-			zlog.Debug("txn too big pre-emptively pushing")
+			s.zlogger.Debug("txn too big pre-emptively pushing")
 			if err := deletionBatch.Flush(); err != nil {
 				return err
 			}
@@ -206,7 +204,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 
 func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int) *store.Iterator {
 	sit := store.NewIterator(ctx)
-	zlog.Debug("scanning", zap.Stringer("start", store.Key(start)), zap.Stringer("exclusive_end", store.Key(exclusiveEnd)), zap.Stringer("limit", store.Limit(limit)))
+	s.zlogger.Debug("scanning", zap.Stringer("start", store.Key(start)), zap.Stringer("exclusive_end", store.Key(exclusiveEnd)), zap.Stringer("limit", store.Limit(limit)))
 	go func() {
 		err := s.db.View(func(txn *badger.Txn) error {
 			options := badger.DefaultIteratorOptions
@@ -253,7 +251,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 
 func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Iterator {
 	kr := store.NewIterator(ctx)
-	zlog.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
+	s.zlogger.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
 	go func() {
 		err := s.db.View(func(txn *badger.Txn) error {
 			options := badger.DefaultIteratorOptions
@@ -302,7 +300,7 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 
 func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *store.Iterator {
 	kr := store.NewIterator(ctx)
-	zlog.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
+	s.zlogger.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
 
 	go func() {
 		err := s.db.View(func(txn *badger.Txn) error {

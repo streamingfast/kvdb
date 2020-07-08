@@ -1,6 +1,9 @@
 package store
 
-import "context"
+import (
+	"context"
+	"go.uber.org/zap"
+)
 
 type Purgeable interface {
 	MarkCurrentHeight(height uint64)
@@ -43,6 +46,7 @@ type Deletable interface {
 	BatchDelete(ctx context.Context, keys [][]byte) (err error)
 }
 
-type EmptyValueEnabler interface{
+type Configurable interface{
 	EnableEmpty()
+	SetLogger(logger *zap.Logger)
 }

@@ -2,13 +2,23 @@ package store
 
 import (
 	"fmt"
-	"go.uber.org/zap"
 	"strings"
+
+	"go.uber.org/zap"
 )
 
 type Option func(s *KVStore)
 
-func WithPurgeableStore(tablePrefix []byte,  ttlInBlocks uint64) Option {
+func WithLogger(logger *zap.Logger) Option {
+	return func(s *KVStore) {
+		str := *s
+		if store, ok := str.(Configurable); ok {
+			store.SetLogger(logger)
+		}
+	}
+}
+
+func WithPurgeableStore(tablePrefix []byte, ttlInBlocks uint64) Option {
 	return func(s *KVStore) {
 		*s = NewPurgeableStore(tablePrefix, *s, ttlInBlocks)
 	}
@@ -17,12 +27,11 @@ func WithPurgeableStore(tablePrefix []byte,  ttlInBlocks uint64) Option {
 func WithEmptyValue() Option {
 	return func(s *KVStore) {
 		str := *s
-		if store, ok := str.(EmptyValueEnabler); ok {
+		if store, ok := str.(Configurable); ok {
 			store.EnableEmpty()
 		}
 	}
 }
-
 
 // NewStoreFunc is a function for opening a databse.
 type NewStoreFunc func(path string, opts ...Option) (KVStore, error)

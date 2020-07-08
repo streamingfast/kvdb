@@ -20,11 +20,15 @@ type Store struct {
 	clientConfig config.Config
 	keyPrefix    []byte
 
+
 	batchPut *store.BachOp
+
 	// TIKV does not support empty values, if this flag is set
 	// tikv will prepend an empty byte on write and remove the first byte
 	// on read to ensure that no empty value is written to the db
 	emptyValuePossible bool
+
+	zlogger *zap.Logger
 }
 
 func init() {
@@ -57,6 +61,7 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 		client:       client,
 		clientConfig: rawConfig,
 		batchPut:     store.NewBatchOp(70000000, 0, 0),
+		zlogger: zap.NewNop(),
 	}
 
 	keyPrefix := strings.Trim(dsn.Path, "/") + ";"
@@ -150,7 +155,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 	}
 
 	sit := store.NewIterator(ctx)
-	zlog.Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
+	s.zlogger.Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
 	go func() {
 		keys, values, err := s.client.Scan(ctx, startKey, endKey, limit)
 		if err != nil {
@@ -175,7 +180,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 
 func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Iterator {
 	sit := store.NewIterator(ctx)
-	zlog.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
+	s.zlogger.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
 
 	startKey := s.withPrefix(prefix)
 	exclusiveEnd := key.Key(startKey).PrefixNext()
@@ -231,7 +236,7 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 
 func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *store.Iterator {
 	sit := store.NewIterator(ctx)
-	zlog.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
+	s.zlogger.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
 
 	sliceSize := 100
 	if store.Limit(limit).Bounded() && limit < sliceSize {
