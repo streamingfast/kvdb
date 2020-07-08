@@ -17,6 +17,7 @@ type Store struct {
 	conn     *grpc.ClientConn
 	client   pbnetkv.NetKVClient
 	putBatch []*pbnetkv.KeyValue
+	zlogger  *zap.Logger
 }
 
 func init() {
@@ -27,15 +28,11 @@ func init() {
 	})
 }
 
-func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
+func NewStore(dsnString string, opts ...store.Option) (store.ConfigurableKVStore, error) {
 	dsn, err := url.Parse(dsnString)
 	if err != nil {
 		return nil, fmt.Errorf("badger new: dsn: %w", err)
 	}
-
-	zlog.Debug("setting up badger db",
-		zap.String("dsn.path", dsnString),
-	)
 
 	var grpcOpts []grpc.DialOption
 	if dsn.Query().Get("insecure") == "true" {
@@ -51,8 +48,9 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 	client := pbnetkv.NewNetKVClient(conn)
 
 	s := &Store{
-		conn:   conn,
-		client: client,
+		conn:    conn,
+		client:  client,
+		zlogger: zap.NewNop(),
 	}
 
 	return s, nil
@@ -63,7 +61,7 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
-	zlog.Debug("putting", zap.Stringer("key", store.Key(key)))
+	s.zlogger.Debug("putting", zap.Stringer("key", store.Key(key)))
 	s.putBatch = append(s.putBatch, &pbnetkv.KeyValue{Key: key, Value: value})
 	return nil
 }

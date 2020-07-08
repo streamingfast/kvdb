@@ -13,15 +13,15 @@ import (
 )
 
 func TestAll(t *testing.T) {
-	storetest.TestAll(t, "Badger", newTestBadgerFactory(t, "badger-test.db"))
+	storetest.TestAll(t, "Badger", NewTestBadgerFactory(t, "badger-test.db"), true)
 }
 
-func newTestBadgerFactory(t *testing.T, testDBFilename string) storetest.DriverFactory {
-	return func() (store.KVStore, storetest.DriverCleanupFunc) {
+func NewTestBadgerFactory(t *testing.T, testDBFilename string) storetest.DriverFactory {
+	return func(opts ...store.Option) (store.KVStore, storetest.DriverCleanupFunc) {
 		dir, err := ioutil.TempDir("", "kvdb-badger")
 		require.NoError(t, err)
-		dsn := fmt.Sprintf("badger://%s", path.Join(dir, "flux.db"))
-		kvStore, err := NewStore(dsn)
+		dsn := fmt.Sprintf("badger://%s", path.Join(dir, testDBFilename))
+		kvStore, err := store.New(dsn, opts...)
 		require.NoError(t, err)
 		return kvStore, func() {
 			err := os.RemoveAll(dir)

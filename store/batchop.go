@@ -2,7 +2,7 @@ package store
 
 import "time"
 
-type BatchPut struct {
+type BachOp struct {
 	sizeThreshold int
 	putsThreshold int
 	timeThreshold time.Duration
@@ -13,23 +13,23 @@ type BatchPut struct {
 	lastReset time.Time
 }
 
-func NewBatchPut(sizeThreshold int, putsThreshold int, timeThreshold time.Duration) *BatchPut {
-	b := &BatchPut{
+func NewBatchOp(sizeThreshold int, optsThreshold int, timeThreshold time.Duration) *BachOp {
+	b := &BachOp{
 		sizeThreshold: sizeThreshold,
-		putsThreshold: putsThreshold,
+		putsThreshold: optsThreshold,
 		timeThreshold: timeThreshold,
 	}
 	b.Reset()
 	return b
 }
 
-func (b *BatchPut) Put(key, value []byte) {
+func (b *BachOp) Op(key, value []byte) {
 	b.size += len(key) + len(value)
 	b.puts++
 	b.batch = append(b.batch, &KV{key, value})
 }
 
-func (b *BatchPut) ShouldFlush() bool {
+func (b *BachOp) ShouldFlush() bool {
 	if len(b.batch) == 0 {
 		return false
 	}
@@ -45,11 +45,11 @@ func (b *BatchPut) ShouldFlush() bool {
 	return false
 }
 
-func (b *BatchPut) GetBatch() []*KV {
+func (b *BachOp) GetBatch() []*KV {
 	return b.batch
 }
 
-func (b *BatchPut) Reset() {
+func (b *BachOp) Reset() {
 	b.batch = make([]*KV, 0, 1024)
 	b.size = 0
 	b.puts = 0

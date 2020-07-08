@@ -24,7 +24,12 @@ type Store struct {
 	keyPrefix []byte
 	tableName string
 
-	batchPut *store.BatchPut
+	maxBytesBeforeFlush   uint64
+	maxRowsBeforeFlush    uint64
+	maxSecondsBeforeFlush uint64
+
+	batchPut *store.BachOp
+	zlogger  *zap.Logger
 }
 
 func init() {
@@ -35,7 +40,7 @@ func init() {
 }
 
 // NewStore supports bigkt://project.instance/tableName?createTable=true
-func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
+func NewStore(dsnString string, opts ...store.Option) (store.ConfigurableKVStore, error) {
 	dsn, err := url.Parse(dsnString)
 	if err != nil {
 		return nil, err
@@ -86,8 +91,12 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 	}
 
 	s := &Store{
-		client:   client,
-		batchPut: store.NewBatchPut(int(maxBytesBeforeFlush), int(maxRowsBeforeFlush), time.Duration(maxSecondsBeforeFlush)*time.Second),
+		client:                client,
+		batchPut:              store.NewBatchOp(int(maxBytesBeforeFlush), int(maxRowsBeforeFlush), time.Duration(maxSecondsBeforeFlush)*time.Second),
+		maxBytesBeforeFlush:   maxBytesBeforeFlush,
+		maxRowsBeforeFlush:    maxRowsBeforeFlush,
+		maxSecondsBeforeFlush: maxSecondsBeforeFlush,
+		zlogger:               zap.NewNop(),
 	}
 
 	if keyPrefix := dsn.Query().Get("keyPrefix"); keyPrefix != "" {
@@ -106,19 +115,19 @@ func NewStore(dsnString string, opts ...store.Option) (store.KVStore, error) {
 	if createTable {
 		adminClient, err := bigtable.NewAdminClient(ctx, project, instance)
 		if err != nil {
-			zlog.Error("failed setting up admin client", zap.Error(err))
+			return nil, fmt.Errorf("failed setting up admin client: %w", err)
 		}
 
 		if err := adminClient.CreateTable(ctx, tableName); err != nil && !isAlreadyExistsError(err) {
-			zlog.Error("failed creating table", zap.String("name", tableName), zap.Error(err))
+			return nil, fmt.Errorf("failed creating table %q: %w", tableName, err)
 		}
 
 		if err := adminClient.CreateColumnFamily(ctx, tableName, "kv"); err != nil && !isAlreadyExistsError(err) {
-			zlog.Error("failed creating 'kv' family", zap.String("table_name", tableName), zap.Error(err))
+			return nil, fmt.Errorf("failed creating 'kv' family for table %q: %w", tableName, err)
 		}
 
 		if err := adminClient.SetGCPolicy(ctx, tableName, "kv", bigtable.MaxVersionsPolicy(1)); err != nil {
-			zlog.Error("failed applying gc policy to 'kv' family", zap.String("table_name", tableName), zap.Error(err))
+			return nil, fmt.Errorf("failed applying gc policy to 'kv' family for table %q: %w", tableName, err)
 		}
 	}
 
@@ -139,7 +148,7 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
-	s.batchPut.Put(s.withPrefix(key), value)
+	s.batchPut.Op(s.withPrefix(key), value)
 	if s.batchPut.ShouldFlush() {
 		return s.FlushPuts(ctx)
 	}
@@ -190,7 +199,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 		btKeys[i] = string(key)
 	}
 
-	zlog.Debug("batch get", zap.Int("key_count", len(btKeys)))
+	s.zlogger.Debug("batch get", zap.Int("key_count", len(btKeys)))
 	opts := []bigtable.ReadOption{latestCellFilter}
 
 	kr := store.NewIterator(ctx)
@@ -210,6 +219,43 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 	return kr
 }
 
+func (s *Store) BatchDelete(ctx context.Context, deletionKeys [][]byte) (err error) {
+	if len(deletionKeys) == 0 {
+		return nil
+	}
+	batch := store.NewBatchOp(int(s.maxBytesBeforeFlush), int(s.maxRowsBeforeFlush), time.Duration(s.maxSecondsBeforeFlush)*time.Second)
+	keys := make([]string, len(deletionKeys))
+	values := make([]*bigtable.Mutation, len(deletionKeys))
+	for idx, deletionKey := range deletionKeys {
+		if batch.ShouldFlush() {
+			errs, err := s.table.ApplyBulk(ctx, keys, values)
+			if err != nil {
+				return err
+			}
+			if len(errs) != 0 {
+				return fmt.Errorf("apply bulk error: %s", errs)
+			}
+			keys = make([]string, len(deletionKeys))
+			values = make([]*bigtable.Mutation, len(deletionKeys))
+		}
+		batch.Op(deletionKey, []byte{0x00})
+		keys[idx] = string(deletionKey)
+		mut := bigtable.NewMutation()
+		mut.DeleteRow()
+		values[idx] = mut
+	}
+	if len(batch.GetBatch()) > 0 {
+		errs, err := s.table.ApplyBulk(ctx, keys, values)
+		if err != nil {
+			return err
+		}
+		if len(errs) != 0 {
+			return fmt.Errorf("apply bulk error: %s", errs)
+		}
+	}
+	return nil
+}
+
 func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int) *store.Iterator {
 	startKey := s.withPrefix(start)
 	endKey := s.withPrefix(exclusiveEnd)
@@ -222,7 +268,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 		return sit
 	}
 
-	zlog.Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
+	s.zlogger.Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
 	opts := []bigtable.ReadOption{latestCellFilter}
 	if store.Limit(limit).Bounded() {
 		opts = append(opts, bigtable.LimitRows(int64(limit)))
@@ -249,7 +295,7 @@ var latestCellFilter = bigtable.RowFilter(latestCellOnly)
 
 func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Iterator {
 	sit := store.NewIterator(ctx)
-	zlog.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
+	s.zlogger.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
 	opts := []bigtable.ReadOption{latestCellFilter}
 	if store.Limit(limit).Bounded() {
 		opts = append(opts, bigtable.LimitRows(int64(limit)))
@@ -275,7 +321,7 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 
 func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *store.Iterator {
 	sit := store.NewIterator(ctx)
-	zlog.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
+	s.zlogger.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
 	opts := []bigtable.ReadOption{latestCellFilter}
 	if store.Limit(limit).Bounded() {
 		opts = append(opts, bigtable.LimitRows(int64(limit)))

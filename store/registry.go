@@ -7,20 +7,8 @@ import (
 	"go.uber.org/zap"
 )
 
-type Option string
-const (
-	// TIKV does not support empty values, thus the consumer of KVDB needs
-	// to let the underlying driver (i.e. TIVK) know that the values may
-	// be empty ( i.e. flux writing keys with no values to signify deletion)
-	// in which case said driver woudl take that into account when
-	// writing and reading data
-	WithEmptyValueSupport Option = "WithEmptyValueSupport"
-)
-
-
-
 // NewStoreFunc is a function for opening a databse.
-type NewStoreFunc func(path string, opts ...Option) (KVStore, error)
+type NewStoreFunc func(path string, opts ...Option) (ConfigurableKVStore, error)
 
 type Registration struct {
 	Name        string // unique name
@@ -39,13 +27,25 @@ func Register(reg *Registration) {
 	registry[reg.Name] = reg
 }
 
-func New(dsn string, opts ...Option) (KVStore, error) {
+func New(dsn string, opts ...Option) (ConfigurableKVStore, error) {
 	chunks := strings.Split(dsn, ":")
 	reg, found := registry[chunks[0]]
 	if !found {
 		return nil, fmt.Errorf("no such kv store registered %q", chunks[0])
 	}
-	return reg.FactoryFunc(dsn, opts...)
+	store, err := reg.FactoryFunc(dsn, opts...)
+	if err != nil {
+		return nil, err
+	}
+	for _, opt := range opts {
+		if v, ok := opt.(purgeableOpt); ok {
+			fmt.Println("purgeable stopre")
+			store = NewPurgeableStore(v.tablePrefix, store, v.ttlInBlocks)
+		} else {
+			opt.apply(store)
+		}
+	}
+	return store, nil
 }
 
 // ByName returns a registered store driver

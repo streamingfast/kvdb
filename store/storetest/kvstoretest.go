@@ -2,32 +2,172 @@ package storetest
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/dfuse-io/kvdb/store"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var kvstoreTests = []struct {
-	name string
-	test func(t *testing.T, driver store.KVStore)
-}{
-	{"basic", TestBasic},
+type kvStoreOptions struct {
+	withPurgeable             bool
+	purgeableStoreTablePrefix []byte
+	purgeableTTLInBlocks      uint64
 }
 
-func TestAllKVStore(t *testing.T, driverName string, driverFactory DriverFactory) {
-	for _, rt := range kvstoreTests {
-		t.Run(driverName+"/"+rt.name, func(t *testing.T) {
-			driver, closer := driverFactory()
+var kvstoreTests = []struct {
+	name    string
+	test    func(t *testing.T, driver store.KVStore, options kvStoreOptions)
+	options kvStoreOptions
+}{
+	{
+		name: "basic",
+		test: TestBasic,
+		options: kvStoreOptions{
+			withPurgeable: false,
+		},
+	},
+	{
+		name: "purgeable",
+		test: TestPurgeable,
+		options: kvStoreOptions{
+			withPurgeable:             true,
+			purgeableStoreTablePrefix: []byte{0x09},
+			purgeableTTLInBlocks:      1,
+		},
+	},
+}
+
+func TestAllKVStore(t *testing.T, driverName string, driverFactory DriverFactory, testPurgeableStore bool) {
+	for _, test := range kvstoreTests {
+		testName := driverName + "/" + test.name
+		t.Run(testName, func(t *testing.T) {
+			opts := []store.Option{}
+			if test.options.withPurgeable {
+				if !testPurgeableStore {
+					t.Skipf("Unable to test purgeable for driver %s must enable it", testName)
+					return
+				}
+				opts = append(opts, store.WithPurgeableStore(test.options.purgeableStoreTablePrefix, test.options.purgeableTTLInBlocks))
+			}
+			driver, closer := driverFactory(opts...)
 			defer closer()
-			rt.test(t, driver)
+			test.test(t, driver, test.options)
 		})
 	}
 }
 
-func TestBasic(t *testing.T, driver store.KVStore) {
+func TestPurgeable(t *testing.T, driver store.KVStore, options kvStoreOptions) {
+	tests := []struct {
+		key    []byte
+		value  []byte
+		height uint64
+	}{
+		{
+			key:    []byte("a"),
+			value:  []byte("1"),
+			height: 90,
+		},
+		{
+			key:    []byte("ba"),
+			value:  []byte("2"),
+			height: 80,
+		},
+		{
+			key:    []byte("ba1"),
+			value:  []byte("3"),
+			height: 92,
+		},
+		{
+			key:    []byte("ba2"),
+			value:  []byte("4"),
+			height: 94,
+		},
+		{
+			key:    []byte("bb"),
+			value:  []byte("5"),
+			height: 1085,
+		},
+		{
+			key:    []byte("c"),
+			value:  []byte("6"),
+			height: 96,
+		},
+	}
+
+	var ephemeralDriver *store.PurgeableKVStore
+	var ok bool
+	if ephemeralDriver, ok = driver.(*store.PurgeableKVStore); !ok {
+		t.Fatalf("expected a purgeable kvstore to run the test. Ensure that you enable `withPurgeable` to true")
+		return
+	}
+
+	// Putting the keys in DB
+	for _, test := range tests {
+		ephemeralDriver.MarkCurrentHeight(test.height)
+		err := ephemeralDriver.Put(context.Background(), test.key, test.value)
+		require.NoError(t, err)
+	}
+
+	// testing Flush Put
+	err := driver.FlushPuts(context.Background())
+	require.NoError(t, err)
+
+	// Ensuring that the Keys are in the DB
+	for _, test := range tests {
+		// testing GET function
+		v, err := driver.Get(context.Background(), test.key)
+		require.NoError(t, err)
+		require.Equal(t, test.value, v)
+	}
+
+	// Ensuring that the deletions Keys are in the DB
+	for _, test := range tests {
+		// testing GET function
+		expectedDeletionKey := testDeleteKeyGenerate(t, options.purgeableStoreTablePrefix, test.height, test.key)
+		v, err := driver.Get(context.Background(), expectedDeletionKey)
+		require.NoError(t, err)
+		require.Equal(t, []byte{0x00}, v)
+	}
+
+	// testing Purge
+	purgeBelowHeight := uint64(92)
+	ephemeralDriver.MarkCurrentHeight(purgeBelowHeight)
+	err = ephemeralDriver.PurgeKeys(context.Background())
+	require.NoError(t, err)
+
+	// Ensuring that the Keys have been purged correctly
+	for _, test := range tests {
+		// testing GET function
+		v, err := driver.Get(context.Background(), test.key)
+		if test.height < (purgeBelowHeight - options.purgeableTTLInBlocks) {
+			require.Error(t, err)
+			assert.Equal(t, err, store.ErrNotFound)
+		} else {
+			require.NoError(t, err)
+			require.Equal(t, test.value, v)
+		}
+	}
+
+	// Ensuring that the Deletion Keys have been purged correctly
+	for _, test := range tests {
+		// testing GET function
+		v, err := driver.Get(context.Background(), test.key)
+		if test.height < (purgeBelowHeight - options.purgeableTTLInBlocks) {
+			require.Error(t, err)
+			assert.Equal(t, err, store.ErrNotFound)
+		} else {
+			require.NoError(t, err)
+			require.Equal(t, test.value, v)
+		}
+	}
+
+}
+
+func TestBasic(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 	all := []store.KV{
 		{Key: []byte("a"), Value: []byte("1")},
 		{Key: []byte("ba"), Value: []byte("2")},
@@ -126,6 +266,25 @@ func TestBasic(t *testing.T, driver store.KVStore) {
 	testScan(t, driver, []byte(""), testStringsToKey("c"), 3, all[:3])
 	testScan(t, driver, []byte("b"), nil, 1, nil)
 	testScan(t, driver, []byte("b"), testStringsToKey(""), 1, nil)
+
+	if deletableDriver, ok := driver.(store.Deletable); ok {
+		// testing Batch Deletion function
+		keys := [][]byte{}
+		for _, kv := range all {
+			keys = append(keys, kv.Key)
+		}
+
+		err = deletableDriver.BatchDelete(context.Background(), keys)
+		require.NoError(t, err)
+
+		// testing GET with a flush
+		for _, kv := range all {
+			// testing GET function
+			_, err := driver.Get(context.Background(), kv.Key)
+			require.Error(t, err)
+			assert.Equal(t, err, store.ErrNotFound)
+		}
+	}
 }
 
 func testPrefix(t *testing.T, driver store.KVStore, prefix []byte, limit int, exp []store.KV) {
@@ -182,4 +341,11 @@ func testPrintKVs(title string, out []store.KV) {
 			fmt.Printf("- %s => %s\n", string(kv.Key), string(kv.Value))
 		}
 	}
+}
+
+func testDeleteKeyGenerate(t *testing.T, deletionTablePrefix []byte, height uint64, key []byte) []byte {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, height)
+	deletionKey := append(deletionTablePrefix, buf...)
+	return append(deletionKey, key...)
 }

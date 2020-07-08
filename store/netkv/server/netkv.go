@@ -23,7 +23,7 @@ type Server struct {
 	listener   net.Listener
 }
 
-func New(listenAddr string, dsn string) (*Server, error) {
+func Launch(listenAddr string, dsn string) (*Server, error) {
 	str, err := store.New(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("setting up kvdb store: %w", err)

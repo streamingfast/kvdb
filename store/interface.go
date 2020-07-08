@@ -1,6 +1,20 @@
 package store
 
-import "context"
+import (
+	"context"
+
+	"go.uber.org/zap"
+)
+
+type Purgeable interface {
+	MarkCurrentHeight(height uint64)
+	PurgeKeys(ctx context.Context) error
+}
+
+type ConfigurableKVStore interface {
+	KVStore
+	Configurable
+}
 
 type KVStore interface {
 	// Put writes to a transaction, which might be flushed from time to time. Call FlushPuts() to ensure all Put entries are properly written to the database.
@@ -30,4 +44,14 @@ type KVStore interface {
 type ReversibleKVStore interface {
 	ReverseScan(ctx context.Context, start, exclusiveEnd []byte, limit int) *Iterator
 	ReversePrefix(ctx context.Context, prefix []byte, limit int) *Iterator
+}
+
+type Deletable interface {
+	// Delete a batch of keys
+	BatchDelete(ctx context.Context, keys [][]byte) (err error)
+}
+
+type Configurable interface {
+	EnableEmpty()
+	SetLogger(logger *zap.Logger)
 }
