@@ -15,7 +15,7 @@ import (
 )
 
 func TestAll(t *testing.T) {
-	storetest.TestAll(t, "NetKV", newTestNetKVFactory(t), false)
+	storetest.TestAll(t, "NetKV", newTestNetKVFactory(t))
 }
 
 func newTestNetKVFactory(t *testing.T) storetest.DriverFactory {

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dfuse-io/logging"
+
 	"cloud.google.com/go/bigtable"
 	"github.com/dfuse-io/kvdb/store"
 	"go.uber.org/zap"
@@ -29,7 +31,6 @@ type Store struct {
 	maxSecondsBeforeFlush uint64
 
 	batchPut *store.BachOp
-	zlogger  *zap.Logger
 }
 
 func init() {
@@ -40,7 +41,7 @@ func init() {
 }
 
 // NewStore supports bigkt://project.instance/tableName?createTable=true
-func NewStore(dsnString string, opts ...store.Option) (store.ConfigurableKVStore, error) {
+func NewStore(dsnString string) (store.KVStore, error) {
 	dsn, err := url.Parse(dsnString)
 	if err != nil {
 		return nil, err
@@ -96,7 +97,6 @@ func NewStore(dsnString string, opts ...store.Option) (store.ConfigurableKVStore
 		maxBytesBeforeFlush:   maxBytesBeforeFlush,
 		maxRowsBeforeFlush:    maxRowsBeforeFlush,
 		maxSecondsBeforeFlush: maxSecondsBeforeFlush,
-		zlogger:               zap.NewNop(),
 	}
 
 	if keyPrefix := dsn.Query().Get("keyPrefix"); keyPrefix != "" {
@@ -194,12 +194,13 @@ func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
 }
 
 func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
+	zlogger := logging.Logger(ctx, zlog)
 	btKeys := make([]string, len(keys))
 	for i, key := range keys {
 		btKeys[i] = string(key)
 	}
 
-	s.zlogger.Debug("batch get", zap.Int("key_count", len(btKeys)))
+	zlogger.Debug("batch get", zap.Int("key_count", len(btKeys)))
 	opts := []bigtable.ReadOption{latestCellFilter}
 
 	kr := store.NewIterator(ctx)
@@ -257,6 +258,7 @@ func (s *Store) BatchDelete(ctx context.Context, deletionKeys [][]byte) (err err
 }
 
 func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int) *store.Iterator {
+	zlogger := logging.Logger(ctx, zlog)
 	startKey := s.withPrefix(start)
 	endKey := s.withPrefix(exclusiveEnd)
 
@@ -268,7 +270,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 		return sit
 	}
 
-	s.zlogger.Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
+	zlogger.Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
 	opts := []bigtable.ReadOption{latestCellFilter}
 	if store.Limit(limit).Bounded() {
 		opts = append(opts, bigtable.LimitRows(int64(limit)))
@@ -294,8 +296,9 @@ var latestCellOnly = bigtable.LatestNFilter(1)
 var latestCellFilter = bigtable.RowFilter(latestCellOnly)
 
 func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Iterator {
+	zlogger := logging.Logger(ctx, zlog)
 	sit := store.NewIterator(ctx)
-	s.zlogger.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
+	zlogger.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
 	opts := []bigtable.ReadOption{latestCellFilter}
 	if store.Limit(limit).Bounded() {
 		opts = append(opts, bigtable.LimitRows(int64(limit)))
@@ -320,8 +323,9 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 }
 
 func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *store.Iterator {
+	zlogger := logging.Logger(ctx, zlog)
 	sit := store.NewIterator(ctx)
-	s.zlogger.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
+	zlogger.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
 	opts := []bigtable.ReadOption{latestCellFilter}
 	if store.Limit(limit).Bounded() {
 		opts = append(opts, bigtable.LimitRows(int64(limit)))

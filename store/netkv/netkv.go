@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/dfuse-io/logging"
+
 	"github.com/dfuse-io/kvdb/store"
 	pbnetkv "github.com/dfuse-io/kvdb/store/netkv/pb"
 	"go.uber.org/zap"
@@ -17,7 +19,6 @@ type Store struct {
 	conn     *grpc.ClientConn
 	client   pbnetkv.NetKVClient
 	putBatch []*pbnetkv.KeyValue
-	zlogger  *zap.Logger
 }
 
 func init() {
@@ -28,7 +29,7 @@ func init() {
 	})
 }
 
-func NewStore(dsnString string, opts ...store.Option) (store.ConfigurableKVStore, error) {
+func NewStore(dsnString string) (store.KVStore, error) {
 	dsn, err := url.Parse(dsnString)
 	if err != nil {
 		return nil, fmt.Errorf("badger new: dsn: %w", err)
@@ -48,9 +49,8 @@ func NewStore(dsnString string, opts ...store.Option) (store.ConfigurableKVStore
 	client := pbnetkv.NewNetKVClient(conn)
 
 	s := &Store{
-		conn:    conn,
-		client:  client,
-		zlogger: zap.NewNop(),
+		conn:   conn,
+		client: client,
 	}
 
 	return s, nil
@@ -61,7 +61,8 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
-	s.zlogger.Debug("putting", zap.Stringer("key", store.Key(key)))
+	zlogger := logging.Logger(ctx, zlog)
+	zlogger.Debug("putting", zap.Stringer("key", store.Key(key)))
 	s.putBatch = append(s.putBatch, &pbnetkv.KeyValue{Key: key, Value: value})
 	return nil
 }
@@ -127,6 +128,13 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 		}
 	}()
 	return it
+}
+
+func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) (err error) {
+	if _, err := s.client.BatchDelete(ctx, &pbnetkv.Keys{Keys: keys}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int) *store.Iterator {

@@ -17,7 +17,7 @@ func TestAll(t *testing.T) {
 		return
 	}
 
-	storetest.TestAll(t, "tikv", newTestFactory(t), true)
+	storetest.TestAll(t, "tikv", newTestFactory(t))
 }
 
 func newTestFactory(t *testing.T) storetest.DriverFactory {

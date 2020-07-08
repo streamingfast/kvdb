@@ -30,7 +30,7 @@ func TestAll(t *testing.T) {
 		return
 	}
 
-	storetest.TestAll(t, "bigkv", newTestFactory(t), true)
+	storetest.TestAll(t, "bigkv", newTestFactory(t))
 }
 
 func newTestFactory(t *testing.T) storetest.DriverFactory {

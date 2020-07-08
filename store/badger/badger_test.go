@@ -13,7 +13,7 @@ import (
 )
 
 func TestAll(t *testing.T) {
-	storetest.TestAll(t, "Badger", NewTestBadgerFactory(t, "badger-test.db"), true)
+	storetest.TestAll(t, "Badger", NewTestBadgerFactory(t, "badger-test.db"))
 }
 
 func NewTestBadgerFactory(t *testing.T, testDBFilename string) storetest.DriverFactory {

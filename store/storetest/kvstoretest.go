@@ -41,20 +41,15 @@ var kvstoreTests = []struct {
 	},
 }
 
-func TestAllKVStore(t *testing.T, driverName string, driverFactory DriverFactory, testPurgeableStore bool) {
+func TestAllKVStore(t *testing.T, driverName string, driverFactory DriverFactory) {
 	for _, test := range kvstoreTests {
 		testName := driverName + "/" + test.name
 		t.Run(testName, func(t *testing.T) {
-			opts := []store.Option{}
-			if test.options.withPurgeable {
-				if !testPurgeableStore {
-					t.Skipf("Unable to test purgeable for driver %s must enable it", testName)
-					return
-				}
-				opts = append(opts, store.WithPurgeableStore(test.options.purgeableStoreTablePrefix, test.options.purgeableTTLInBlocks))
-			}
-			driver, closer := driverFactory(opts...)
+			driver, closer := driverFactory()
 			defer closer()
+			if test.options.withPurgeable {
+				driver = store.NewPurgeableStore(test.options.purgeableStoreTablePrefix, driver, test.options.purgeableTTLInBlocks)
+			}
 			test.test(t, driver, test.options)
 		})
 	}
@@ -267,24 +262,23 @@ func TestBasic(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 	testScan(t, driver, []byte("b"), nil, 1, nil)
 	testScan(t, driver, []byte("b"), testStringsToKey(""), 1, nil)
 
-	if deletableDriver, ok := driver.(store.Deletable); ok {
-		// testing Batch Deletion function
-		keys := [][]byte{}
-		for _, kv := range all {
-			keys = append(keys, kv.Key)
-		}
-
-		err = deletableDriver.BatchDelete(context.Background(), keys)
-		require.NoError(t, err)
-
-		// testing GET with a flush
-		for _, kv := range all {
-			// testing GET function
-			_, err := driver.Get(context.Background(), kv.Key)
-			require.Error(t, err)
-			assert.Equal(t, err, store.ErrNotFound)
-		}
+	// testing Batch Deletion function
+	keys := [][]byte{}
+	for _, kv := range all {
+		keys = append(keys, kv.Key)
 	}
+
+	err = driver.BatchDelete(context.Background(), keys)
+	require.NoError(t, err)
+
+	// testing GET with a flush
+	for _, kv := range all {
+		// testing GET function
+		_, err := driver.Get(context.Background(), kv.Key)
+		require.Error(t, err)
+		assert.Equal(t, err, store.ErrNotFound)
+	}
+
 }
 
 func testPrefix(t *testing.T, driver store.KVStore, prefix []byte, limit int, exp []store.KV) {

@@ -12,10 +12,9 @@ service NetKV {
   // a hard time knowing which key was not found, etc..
   // This will happen more with sparse trxdb.
   rpc BatchGet(Keys) returns (stream KeyValue);
-
   rpc Scan(ScanRequest) returns (stream KeyValue);
   rpc BatchScan(BatchScanRequest) returns (stream KeyValue);
-
+  rpc BatchDelete(Keys) returns (EmptyResponse);
   rpc Prefix(PrefixRequest) returns (stream KeyValue);
   rpc BatchPrefix(BatchPrefixRequest) returns (stream KeyValue);
 }

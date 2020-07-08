@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/dfuse-io/logging"
+
 	"github.com/dfuse-io/kvdb/store"
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/key"
@@ -26,8 +28,6 @@ type Store struct {
 	// tikv will prepend an empty byte on write and remove the first byte
 	// on read to ensure that no empty value is written to the db
 	emptyValuePossible bool
-
-	zlogger *zap.Logger
 }
 
 func init() {
@@ -38,7 +38,7 @@ func init() {
 }
 
 // NewStore supports tikv://pd0,pd1,pd2:2379?prefix=hexkeyprefix
-func NewStore(dsnString string, opts ...store.Option) (store.ConfigurableKVStore, error) {
+func NewStore(dsnString string) (store.KVStore, error) {
 	dsn, err := url.Parse(dsnString)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,6 @@ func NewStore(dsnString string, opts ...store.Option) (store.ConfigurableKVStore
 		client:       client,
 		clientConfig: rawConfig,
 		batchPut:     store.NewBatchOp(70000000, 0, 0),
-		zlogger:      zap.NewNop(),
 	}
 
 	keyPrefix := strings.Trim(dsn.Path, "/") + ";"
@@ -144,6 +143,7 @@ func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) (err error) {
 }
 
 func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int) *store.Iterator {
+	zlogger := logging.Logger(ctx, zlog)
 	startKey := s.withPrefix(start)
 	endKey := s.withPrefix(exclusiveEnd)
 
@@ -152,7 +152,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 	}
 
 	sit := store.NewIterator(ctx)
-	s.zlogger.Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
+	zlogger.Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
 	go func() {
 		keys, values, err := s.client.Scan(ctx, startKey, endKey, limit)
 		if err != nil {
@@ -176,8 +176,9 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 }
 
 func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Iterator {
+	zlogger := logging.Logger(ctx, zlog)
 	sit := store.NewIterator(ctx)
-	s.zlogger.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
+	zlogger.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
 
 	startKey := s.withPrefix(prefix)
 	exclusiveEnd := key.Key(startKey).PrefixNext()
@@ -232,8 +233,9 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 }
 
 func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *store.Iterator {
+	zlogger := logging.Logger(ctx, zlog)
 	sit := store.NewIterator(ctx)
-	s.zlogger.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
+	zlogger.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
 
 	sliceSize := 100
 	if store.Limit(limit).Bounded() && limit < sliceSize {

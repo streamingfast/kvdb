@@ -105,6 +105,19 @@ func (s *Server) BatchGet(keys *pbnetkv.Keys, stream pbnetkv.NetKV_BatchGetServe
 	return nil
 }
 
+func (s *Server) BatchDelete(ctx context.Context, keys *pbnetkv.Keys) (*pbnetkv.EmptyResponse, error) {
+	if len(keys.Keys) == 0 {
+		return &pbnetkv.EmptyResponse{}, nil
+	}
+
+	err := s.store.BatchDelete(ctx, keys.Keys)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pbnetkv.EmptyResponse{}, nil
+}
+
 func wrapNotFoundError(err error) error {
 	// TODO: unwrap the `gRPC Status` object, and check with the `Code`
 	if err == store.ErrNotFound {

@@ -8,7 +8,7 @@ import (
 )
 
 // NewStoreFunc is a function for opening a databse.
-type NewStoreFunc func(path string, opts ...Option) (ConfigurableKVStore, error)
+type NewStoreFunc func(path string) (KVStore, error)
 
 type Registration struct {
 	Name        string // unique name
@@ -27,23 +27,18 @@ func Register(reg *Registration) {
 	registry[reg.Name] = reg
 }
 
-func New(dsn string, opts ...Option) (ConfigurableKVStore, error) {
+func New(dsn string, opts ...Option) (KVStore, error) {
 	chunks := strings.Split(dsn, ":")
 	reg, found := registry[chunks[0]]
 	if !found {
 		return nil, fmt.Errorf("no such kv store registered %q", chunks[0])
 	}
-	store, err := reg.FactoryFunc(dsn, opts...)
+	store, err := reg.FactoryFunc(dsn)
 	if err != nil {
 		return nil, err
 	}
 	for _, opt := range opts {
-		if v, ok := opt.(purgeableOpt); ok {
-			fmt.Println("purgeable stopre")
-			store = NewPurgeableStore(v.tablePrefix, store, v.ttlInBlocks)
-		} else {
-			opt.apply(store)
-		}
+		opt.apply(store)
 	}
 	return store, nil
 }

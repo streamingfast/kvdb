@@ -16,6 +16,6 @@ func init() {
 type DriverCleanupFunc func()
 type DriverFactory func(opts ...store.Option) (store.KVStore, DriverCleanupFunc)
 
-func TestAll(t *testing.T, driverName string, driverFactory DriverFactory,testPurgeableStore bool) {
-	TestAllKVStore(t, driverName, driverFactory, testPurgeableStore)
+func TestAll(t *testing.T, driverName string, driverFactory DriverFactory) {
+	TestAllKVStore(t, driverName, driverFactory)
 }
