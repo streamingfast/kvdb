@@ -28,7 +28,7 @@ func NewPurgeableStore(tablePrefix []byte, store KVStore, ttlInBlocks uint64) *P
 
 func (s *PurgeableKVStore) Put(ctx context.Context, key, value []byte) error {
 	if !s.heightSet {
-		panic("ephemeral kv store height not set")
+		return fmt.Errorf("ephemeral kv store height not set")
 	}
 	if err := s.KVStore.Put(ctx, key, value); err != nil {
 		return err
@@ -43,6 +43,11 @@ func (s *PurgeableKVStore) Put(ctx context.Context, key, value []byte) error {
 }
 
 func (s *PurgeableKVStore) MarkCurrentHeight(height uint64) {
+	if traceEnabled {
+		zlog.Debug("setting purgeable store height",
+			zap.Uint64("height", height),
+		)
+	}
 	s.height = height
 	s.heightSet = true
 }

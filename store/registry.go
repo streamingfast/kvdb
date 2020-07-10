@@ -27,6 +27,11 @@ func Register(reg *Registration) {
 	registry[reg.Name] = reg
 }
 
+func isRegistered(schemeName string) bool {
+	_, isRegistered := registry[schemeName]
+	return isRegistered
+}
+
 func New(dsn string, opts ...Option) (KVStore, error) {
 	chunks := strings.Split(dsn, ":")
 	reg, found := registry[chunks[0]]

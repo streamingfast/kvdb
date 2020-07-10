@@ -10,7 +10,6 @@ type Purgeable interface {
 }
 
 type KVStore interface {
-
 	// Put writes to a transaction, which might be flushed from time to time. Call FlushPuts() to ensure all Put entries are properly written to the database.
 	Put(ctx context.Context, key, value []byte) (err error)
 	// FlushPuts takes any pending writes (calls to Put()), and flushes them.

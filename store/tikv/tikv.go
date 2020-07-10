@@ -18,6 +18,7 @@ import (
 const emptyByte = 0x00
 
 type Store struct {
+	dsn          string
 	client       *rawkv.Client
 	clientConfig config.Config
 	keyPrefix    []byte
@@ -28,6 +29,10 @@ type Store struct {
 	// tikv will prepend an empty byte on write and remove the first byte
 	// on read to ensure that no empty value is written to the db
 	emptyValuePossible bool
+}
+
+func (s *Store) String() string {
+	return fmt.Sprintf("net kv store with dsn: %q", s.dsn)
 }
 
 func init() {
@@ -57,6 +62,7 @@ func NewStore(dsnString string) (store.KVStore, error) {
 	}
 
 	s := &Store{
+		dsn:          dsnString,
 		client:       client,
 		clientConfig: rawConfig,
 		batchPut:     store.NewBatchOp(70000000, 0, 0),

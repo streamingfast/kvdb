@@ -17,9 +17,14 @@ import (
 )
 
 type Store struct {
+	dsn        string
 	db         *badger.DB
 	writeBatch *badger.WriteBatch
 	compressor store.Compressor
+}
+
+func (s *Store) String() string {
+	return fmt.Sprintf("badger kv store with dsn: %q", s.dsn)
 }
 
 func init() {
@@ -54,10 +59,10 @@ func NewStore(dsnString string) (store.KVStore, error) {
 	}
 
 	s := &Store{
+		dsn:        dsnString,
 		db:         db,
 		compressor: compressor,
 	}
-
 	return s, nil
 }
 

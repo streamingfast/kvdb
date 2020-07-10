@@ -16,9 +16,14 @@ import (
 )
 
 type Store struct {
+	dsn      string
 	conn     *grpc.ClientConn
 	client   pbnetkv.NetKVClient
 	putBatch []*pbnetkv.KeyValue
+}
+
+func (s *Store) String() string {
+	return fmt.Sprintf("net kv store with dsn: %q", s.dsn)
 }
 
 func init() {
@@ -49,6 +54,7 @@ func NewStore(dsnString string) (store.KVStore, error) {
 	client := pbnetkv.NewNetKVClient(conn)
 
 	s := &Store{
+		dsn:    dsnString,
 		conn:   conn,
 		client: client,
 	}

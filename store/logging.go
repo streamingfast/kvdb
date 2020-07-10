@@ -15,12 +15,19 @@
 package store
 
 import (
+	"os"
+
 	"github.com/dfuse-io/logging"
 	"go.uber.org/zap"
 )
 
 var zlog *zap.Logger
+var traceEnabled = false
 
 func init() {
 	logging.Register("github.com/dfuse-io/kvdb/store", &zlog)
+
+	if os.Getenv("TRACE") == "true" {
+		traceEnabled = true
+	}
 }

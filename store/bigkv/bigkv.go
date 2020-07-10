@@ -20,6 +20,7 @@ import (
 )
 
 type Store struct {
+	dsn    string
 	client *bigtable.Client
 	table  *bigtable.Table
 
@@ -31,6 +32,10 @@ type Store struct {
 	maxSecondsBeforeFlush uint64
 
 	batchPut *store.BachOp
+}
+
+func (s *Store) String() string {
+	return fmt.Sprintf("bigtable kv store with dsn: %q", s.dsn)
 }
 
 func init() {
@@ -92,6 +97,7 @@ func NewStore(dsnString string) (store.KVStore, error) {
 	}
 
 	s := &Store{
+		dsn:                   dsnString,
 		client:                client,
 		batchPut:              store.NewBatchOp(int(maxBytesBeforeFlush), int(maxRowsBeforeFlush), time.Duration(maxSecondsBeforeFlush)*time.Second),
 		maxBytesBeforeFlush:   maxBytesBeforeFlush,
