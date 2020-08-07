@@ -6,16 +6,17 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/dfuse-io/logging"
-
 	"github.com/dfuse-io/kvdb/store"
+	"github.com/dfuse-io/logging"
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/key"
 	"github.com/tikv/client-go/rawkv"
 	"go.uber.org/zap"
 )
 
-const emptyByte = 0x00
+const emptyValueByte = byte(0x00)
+
+var emptyStartKey = []byte{0x00}
 
 type Store struct {
 	dsn          string
@@ -83,7 +84,6 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
-
 	s.batchPut.Op(s.withPrefix(key), s.formatValue(value))
 	if s.batchPut.ShouldFlush() {
 		return s.FlushPuts(ctx)
@@ -101,26 +101,33 @@ func (s *Store) FlushPuts(ctx context.Context) error {
 	keys := make([][]byte, len(kvs))
 	values := make([][]byte, len(kvs))
 	for idx, kv := range kvs {
-		k := kv.Key
-		keys[idx] = k
-		values[idx] = s.formatValue(kv.Value)
+		// The key & value must not be prefixed/formatted here as they already been processed when added to the batch directly
+		keys[idx] = kv.Key
+		values[idx] = kv.Value
 	}
+
 	err := s.client.BatchPut(ctx, keys, values)
 	if err != nil {
 		return err
 	}
+
 	s.batchPut.Reset()
 	return nil
 }
 
-func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
+func (s *Store) Get(ctx context.Context, key []byte) ([]byte, error) {
 	val, err := s.client.Get(ctx, s.withPrefix(key))
 	if err != nil {
 		return nil, err
 	}
+
+	val = s.unformatValue(val)
+
+	// We need to check after unformatting because the value might have changed
 	if val == nil {
 		return nil, store.ErrNotFound
 	}
+
 	return val, nil
 }
 
@@ -135,7 +142,8 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 				return
 			}
 
-			if !kr.PushItem(store.KV{key, s.formatValue(val)}) {
+			// The key must **not** be unprefixed here because it's the one from the loop which is already unprefixed
+			if !kr.PushItem(store.KV{key, s.unformatValue(val)}) {
 				break
 			}
 		}
@@ -144,7 +152,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 	return kr
 }
 
-func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) (err error) {
+func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) error {
 	return s.client.BatchDelete(ctx, keys)
 }
 
@@ -166,12 +174,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 			return
 		}
 		for idx, key := range keys {
-
-			formattedValue := values[idx]
-			if s.emptyValuePossible {
-				formattedValue = values[idx][1:]
-			}
-			if !sit.PushItem(store.KV{s.withoutPrefix(key), formattedValue}) {
+			if !sit.PushItem(store.KV{s.withoutPrefix(key), s.unformatValue(values[idx])}) {
 				break
 			}
 		}
@@ -193,8 +196,9 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 		sliceSize = limit
 	}
 
+	// Can only happen if the actual prefix is empty (which is not permitted outside package), so no need to prefix the empty start key
 	if len(startKey) == 0 {
-		startKey = []byte{0x00}
+		startKey = emptyStartKey
 		exclusiveEnd = nil
 	}
 
@@ -212,20 +216,17 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 			for idx, k := range keys {
 				count++
 
-				formattedValue := values[idx]
-				if s.emptyValuePossible {
-					formattedValue = values[idx][1:]
-				}
-
-				if !sit.PushItem(store.KV{s.withoutPrefix(k), formattedValue}) {
+				if !sit.PushItem(store.KV{s.withoutPrefix(k), s.unformatValue(values[idx])}) {
 					break outmost
 				}
 
 				if store.Limit(limit).Reached(count) {
 					break outmost
 				}
+			}
 
-				startKey = key.Key(k).Next()
+			if len(keys) > 0 {
+				startKey = key.Key(keys[len(keys)-1]).Next()
 			}
 
 			if len(keys) < sliceSize {
@@ -268,8 +269,9 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *
 			startKey := s.withPrefix(prefix)
 			exclusiveEnd := key.Key(startKey).PrefixNext()
 
+			// Can only happen if the actual prefix is empty (which is not permitted outside package), so no need to prefix the empty start key
 			if len(startKey) == 0 {
-				startKey = []byte{0x00}
+				startKey = emptyStartKey
 				exclusiveEnd = nil
 			}
 
@@ -283,15 +285,17 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *
 				for idx, k := range keys {
 					count++
 
-					if !sit.PushItem(store.KV{Key: s.withoutPrefix(k), Value: s.formatValue(values[idx])}) {
+					if !sit.PushItem(store.KV{Key: s.withoutPrefix(k), Value: s.unformatValue(values[idx])}) {
 						break outmost
 					}
 
 					if store.Limit(limit).Reached(count) {
 						break outmost
 					}
+				}
 
-					startKey = key.Key(k).Next()
+				if len(keys) > 0 {
+					startKey = key.Key(keys[len(keys)-1]).Next()
 				}
 
 				if len(keys) < sliceSize {
@@ -325,7 +329,16 @@ func (s *Store) withoutPrefix(key []byte) []byte {
 
 func (s *Store) formatValue(v []byte) []byte {
 	if s.emptyValuePossible {
-		return append([]byte{emptyByte}, v...)
+		return append(v, emptyValueByte)
+	}
+
+	return v
+}
+
+func (s *Store) unformatValue(v []byte) []byte {
+	byteCount := len(v)
+	if s.emptyValuePossible && byteCount >= 1 {
+		return v[0 : byteCount-1]
 	}
 	return v
 }

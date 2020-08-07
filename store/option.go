@@ -1,6 +1,6 @@
 package store
 
-type EmtpyValeEnabler interface {
+type EmtpyValueEnabler interface {
 	EnableEmpty()
 }
 
@@ -16,7 +16,7 @@ func WithEmptyValue() Option {
 }
 
 func (e emptyValueOpt) apply(s KVStore) {
-	if f, ok := s.(EmtpyValeEnabler); ok {
+	if f, ok := s.(EmtpyValueEnabler); ok {
 		f.EnableEmpty()
 	}
 }
