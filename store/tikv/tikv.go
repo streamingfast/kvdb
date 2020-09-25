@@ -23,8 +23,9 @@ type Store struct {
 	client       *rawkv.Client
 	clientConfig config.Config
 	keyPrefix    []byte
+	compressor   store.Compressor
 
-	batchPut *store.BachOp
+	batchPut *store.BatchOp
 
 	// TIKV does not support empty values, if this flag is set
 	// tikv will prepend an empty byte on write and remove the first byte
@@ -62,19 +63,59 @@ func NewStore(dsnString string) (store.KVStore, error) {
 		return nil, err
 	}
 
-	s := &Store{
-		dsn:          dsnString,
-		client:       client,
-		clientConfig: rawConfig,
-		batchPut:     store.NewBatchOp(70000000, 0, 0),
-	}
-
 	keyPrefix := strings.Trim(dsn.Path, "/") + ";"
 	if len(keyPrefix) < 4 {
 		return nil, fmt.Errorf("table prefix needs to be more than 3 characters")
 	}
 
-	s.keyPrefix = []byte(keyPrefix)
+	dsnQuery := dsn.Query()
+	compression := dsnQuery.Get("compression")
+
+	// Use compression size threshold (in bytes) if present, otherwise use ~512KiB
+	compressionThreshold, rawValue, err := store.AsIntOption(dsnQuery.Get("compression_size_threshold"), 512*1024)
+	if err != nil {
+		return nil, fmt.Errorf("compression size threshold option %q is not a valid number: %w", rawValue, err)
+	}
+
+	compressor, err := store.NewCompressor(compression, compressionThreshold)
+	if err != nil {
+		return nil, fmt.Errorf("new compressor: %w", err)
+	}
+
+	// Use batch size threshold (in bytes) if present, otherwise use ~8MiB
+	batchSizeThreshold, rawValue, err := store.AsIntOption(dsnQuery.Get("batch_size_threshold"), 8*1024*1024)
+	if err != nil {
+		return nil, fmt.Errorf("batch size threshold option %q is not a valid number: %w", rawValue, err)
+	}
+
+	// Use batch ops threshold if present, otherwise use 0 (unlimited)
+	batchOpsThreshold, rawValue, err := store.AsIntOption(dsnQuery.Get("batch_ops_threshold"), 0)
+	if err != nil {
+		return nil, fmt.Errorf("batch ops threshold option %q is not a valid number: %w", rawValue, err)
+	}
+
+	// Use batch time threshold if present, otherwise use 0 (unlimited)
+	batchTimeThreshold, rawValue, err := store.AsDurationOption(dsnQuery.Get("batch_time_threshold"), 0)
+	if err != nil {
+		return nil, fmt.Errorf("batch time threshold option %q is not a valid duration: %w", rawValue, err)
+	}
+
+	batcher := store.NewBatchOp(batchSizeThreshold, batchOpsThreshold, batchTimeThreshold)
+
+	zlog.Info("creating store instance",
+		zap.String("dsn", dsnString),
+		zap.String("key_prefix", keyPrefix),
+		zap.Object("compressor", compressor),
+		zap.Object("batcher", batcher),
+	)
+	s := &Store{
+		dsn:          dsnString,
+		client:       client,
+		clientConfig: rawConfig,
+		batchPut:     batcher,
+		compressor:   compressor,
+		keyPrefix:    []byte(keyPrefix),
+	}
 
 	return s, nil
 }
@@ -106,6 +147,10 @@ func (s *Store) FlushPuts(ctx context.Context) error {
 		values[idx] = kv.Value
 	}
 
+	if traceEnabled {
+		zlog.Debug("flush a batch through client", zap.Int("op_count", len(kvs)), zap.Int("size", s.batchPut.Size()))
+	}
+
 	err := s.client.BatchPut(ctx, keys, values)
 	if err != nil {
 		return err
@@ -121,7 +166,10 @@ func (s *Store) Get(ctx context.Context, key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	val = s.unformatValue(val)
+	val, err = s.unformatValue(val)
+	if err != nil {
+		return nil, fmt.Errorf("unformat value: %w", err)
+	}
 
 	// We need to check after unformatting because the value might have changed
 	if val == nil {
@@ -142,8 +190,14 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 				return
 			}
 
+			value, err := s.unformatValue(val)
+			if err != nil {
+				kr.PushError(fmt.Errorf("unformat value: %w", err))
+				return
+			}
+
 			// The key must **not** be unprefixed here because it's the one from the loop which is already unprefixed
-			if !kr.PushItem(store.KV{key, s.unformatValue(val)}) {
+			if !kr.PushItem(store.KV{key, value}) {
 				break
 			}
 		}
@@ -174,7 +228,13 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 			return
 		}
 		for idx, key := range keys {
-			if !sit.PushItem(store.KV{s.withoutPrefix(key), s.unformatValue(values[idx])}) {
+			value, err := s.unformatValue(values[idx])
+			if err != nil {
+				sit.PushError(fmt.Errorf("unformat value: %w", err))
+				return
+			}
+
+			if !sit.PushItem(store.KV{s.withoutPrefix(key), value}) {
 				break
 			}
 		}
@@ -215,8 +275,13 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 
 			for idx, k := range keys {
 				count++
+				value, err := s.unformatValue(values[idx])
+				if err != nil {
+					sit.PushError(fmt.Errorf("unformat value: %w", err))
+					return
+				}
 
-				if !sit.PushItem(store.KV{s.withoutPrefix(k), s.unformatValue(values[idx])}) {
+				if !sit.PushItem(store.KV{s.withoutPrefix(k), value}) {
 					break outmost
 				}
 
@@ -284,8 +349,13 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *
 
 				for idx, k := range keys {
 					count++
+					value, err := s.unformatValue(values[idx])
+					if err != nil {
+						sit.PushError(fmt.Errorf("unformat value: %w", err))
+						return
+					}
 
-					if !sit.PushItem(store.KV{Key: s.withoutPrefix(k), Value: s.unformatValue(values[idx])}) {
+					if !sit.PushItem(store.KV{Key: s.withoutPrefix(k), Value: value}) {
 						break outmost
 					}
 
@@ -327,18 +397,24 @@ func (s *Store) withoutPrefix(key []byte) []byte {
 	return key[len(s.keyPrefix):]
 }
 
-func (s *Store) formatValue(v []byte) []byte {
+func (s *Store) formatValue(v []byte) (out []byte) {
+	out = v
 	if s.emptyValuePossible {
-		return append(v, emptyValueByte)
+		out = append(v, emptyValueByte)
 	}
 
-	return v
+	return s.compressor.Compress(v)
 }
 
-func (s *Store) unformatValue(v []byte) []byte {
+func (s *Store) unformatValue(v []byte) (out []byte, err error) {
+	v, err = s.compressor.Decompress(v)
+	if err != nil {
+		return v, fmt.Errorf("decompress value: %w", err)
+	}
+
 	byteCount := len(v)
 	if s.emptyValuePossible && byteCount >= 1 {
-		return v[0 : byteCount-1]
+		return v[0 : byteCount-1], err
 	}
-	return v
+	return v, err
 }

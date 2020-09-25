@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/dfuse-io/logging"
-	"go.uber.org/zap"
 
 	"github.com/dfuse-io/kvdb/store"
 	"github.com/dfuse-io/kvdb/store/storetest"
@@ -14,14 +13,7 @@ import (
 )
 
 func init() {
-	// Run tests with:
-	//
-	//     gcloud beta emulators bigtable start
-	//
-
-	if os.Getenv("DEBUG") != "" {
-		logging.Override(logging.MustCreateLoggerWithLevel("test", zap.NewAtomicLevelAt(zap.DebugLevel)))
-	}
+	logging.TestingOverride()
 }
 
 func TestAll(t *testing.T) {

@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Changed
+- [`tikv`] Added ability to customize batch time threshold by using `batch_time_threshold=<value>` query parameter in dsn (accepts `time.Duration` string formats).
+- [`tikv`] Added ability to customize batch ops threshold by using `batch_ops_threshold=<value>` query parameter in dsn (accepts positive numbers).
+- [`tikv`] Added ability to customize batch size threshold by using `batch_size_threshold=<value>` query parameter in dsn (accepts positive numbers).
+- [`tikv`] Added ability to customize compression size threshold by using `compression_size_threshold=<value>` query parameter in dsn (accepts positive numbers).
+- [`tikv`] Re-added support for compression to overcome issue where single element are bigger than 8MB. This is now an opt-in feature, to activate, use `compression=zstd` query parameter in dsn.
+- [`tikv`] Default batch size threshold ifs now 8MiB, which is the default max raft entry size in TiKV.
+- [`core`] **BREAKING** Renamed `store.BachOp` to `store.BatchOp` (fixed typo in `Bach`).
 - [`core`] Added `Close` method on `store.KVStore`.
 
 ## [v0.0.1]

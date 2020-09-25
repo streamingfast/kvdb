@@ -90,7 +90,7 @@ func JSONColumnItem(row bigtable.Row, familyColumn string, v interface{}) error 
 
 	err := json.Unmarshal(value, v)
 	if err != nil {
-		return fmt.Errorf("unmarhalling error in column %q: %s", familyColumn, err)
+		return fmt.Errorf("unmarhalling error in column %q: %w", familyColumn, err)
 	}
 
 	return nil
@@ -162,7 +162,7 @@ func ProtoColumnItem(row bigtable.Row, familyColumn string, protoResolver func()
 	out := protoResolver()
 	err := proto.Unmarshal(value, out)
 	if err != nil {
-		return fmt.Errorf("unmarshalling error in column %q: %s", familyColumn, err)
+		return fmt.Errorf("unmarshalling error in column %q: %w", familyColumn, err)
 	}
 
 	return nil

@@ -12,6 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	logging.TestingOverride()
+}
+
 func TestAll(t *testing.T) {
 	storetest.TestAll(t, "Badger", NewTestBadgerFactory(t, "badger-test.db"))
 }

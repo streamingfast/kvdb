@@ -1,8 +1,12 @@
 package store
 
-import "time"
+import (
+	"time"
 
-type BachOp struct {
+	"go.uber.org/zap/zapcore"
+)
+
+type BatchOp struct {
 	sizeThreshold int
 	putsThreshold int
 	timeThreshold time.Duration
@@ -13,8 +17,8 @@ type BachOp struct {
 	lastReset time.Time
 }
 
-func NewBatchOp(sizeThreshold int, optsThreshold int, timeThreshold time.Duration) *BachOp {
-	b := &BachOp{
+func NewBatchOp(sizeThreshold int, optsThreshold int, timeThreshold time.Duration) *BatchOp {
+	b := &BatchOp{
 		sizeThreshold: sizeThreshold,
 		putsThreshold: optsThreshold,
 		timeThreshold: timeThreshold,
@@ -23,13 +27,13 @@ func NewBatchOp(sizeThreshold int, optsThreshold int, timeThreshold time.Duratio
 	return b
 }
 
-func (b *BachOp) Op(key, value []byte) {
+func (b *BatchOp) Op(key, value []byte) {
 	b.size += len(key) + len(value)
 	b.puts++
 	b.batch = append(b.batch, &KV{key, value})
 }
 
-func (b *BachOp) ShouldFlush() bool {
+func (b *BatchOp) ShouldFlush() bool {
 	if len(b.batch) == 0 {
 		return false
 	}
@@ -45,13 +49,24 @@ func (b *BachOp) ShouldFlush() bool {
 	return false
 }
 
-func (b *BachOp) GetBatch() []*KV {
+func (b *BatchOp) Size() int {
+	return b.size
+}
+
+func (b *BatchOp) GetBatch() []*KV {
 	return b.batch
 }
 
-func (b *BachOp) Reset() {
+func (b *BatchOp) Reset() {
 	b.batch = make([]*KV, 0, 1024)
 	b.size = 0
 	b.puts = 0
 	b.lastReset = time.Now()
+}
+
+func (b *BatchOp) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddInt("size_threshold", b.sizeThreshold)
+	enc.AddInt("ops_threshold", b.putsThreshold)
+	enc.AddDuration("time_threshold", b.timeThreshold)
+	return nil
 }

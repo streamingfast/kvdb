@@ -1,6 +1,23 @@
 ## Running tests
 
-### Docker Compose
+### BigTable Tests Setup
+
+In a terminal, start the BigTable Emulator component:
+
+```
+gcloud beta emulators bigtable start
+```
+
+Once it has started correctly, simply fire up another terminal
+and you should now be able to run the tests with:
+
+```
+TEST_BIGKV=true go test ./store/bigkv/...
+```
+
+### TiKV Tests Setup
+
+#### Docker Compose
 
 Boot up a local `tikv` cluster:
 
@@ -30,7 +47,7 @@ Then, your tests can talk to the cluster. Tadam! This will work on Linux, not su
 
 Surely, there's a better way.
 
-### Minikube + TiKV Operator
+#### Minikube + TiKV Operator
 
 Here what's worked best for me, the Docker Composer nor the Docker Stack version did not
 work properly.
@@ -45,7 +62,10 @@ giving here as a quick succession of steps without explanation
 ```
 minikube start # If you don't have a local configured cluster
 
-# Ensure your kubectl points to the created cluster above
+## **Stop**!
+# Ensure your kubectl points to the created cluster above before continuing
+# ... you wouldn't want to peform all this on the production cluster right!
+
 kubectl apply -f https://raw.githubusercontent.com/tikv/tikv-operator/master/manifests/crd.v1beta1.yaml
 
 helm repo add pingcap https://charts.pingcap.org/
@@ -84,3 +104,8 @@ You should now be able to run the tests:
 ```
 TEST_TIKV=tikv://127.0.0.1:2379/data go test ./store/tikv/...
 ```
+
+**Important** For now, tests leave some data in the database, so if you want to
+run the tests multiple time, you need to change the database prefix (so `.../data`
+to `.../data1` in the DSN above). If you use `.../data-{prefix}` syntax exactly,
+the test runner gonna replace it with a randomly generated string.

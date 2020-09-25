@@ -1,6 +1,10 @@
 package store
 
-import "net/url"
+import (
+	"net/url"
+	"strconv"
+	"time"
+)
 
 // RemoveDSNOptions takes a DSN url string and removes from it any query options
 // matching one of the `key` received in parameter.
@@ -50,4 +54,22 @@ func removeDSNOptionsFromURL(dsnURL *url.URL, keys []string) {
 	}
 
 	dsnURL.RawQuery = query.Encode()
+}
+
+func AsIntOption(rawValue string, defaultValue int) (int, string, error) {
+	if rawValue == "" {
+		return defaultValue, rawValue, nil
+	}
+
+	value, err := strconv.Atoi(rawValue)
+	return value, rawValue, err
+}
+
+func AsDurationOption(rawValue string, defaultValue time.Duration) (time.Duration, string, error) {
+	if rawValue == "" {
+		return defaultValue, rawValue, nil
+	}
+
+	value, err := time.ParseDuration(rawValue)
+	return value, rawValue, err
 }

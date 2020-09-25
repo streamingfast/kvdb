@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dfuse-io/logging"
-
 	"cloud.google.com/go/bigtable"
 	"github.com/dfuse-io/kvdb/store"
+	"github.com/dfuse-io/logging"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -31,7 +31,7 @@ type Store struct {
 	maxRowsBeforeFlush    uint64
 	maxSecondsBeforeFlush uint64
 
-	batchPut *store.BachOp
+	batchPut *store.BatchOp
 }
 
 func (s *Store) String() string {
@@ -108,7 +108,7 @@ func NewStore(dsnString string) (store.KVStore, error) {
 	if keyPrefix := dsn.Query().Get("keyPrefix"); keyPrefix != "" {
 		keyPrefixBytes, err := hex.DecodeString(keyPrefix)
 		if err != nil {
-			return nil, fmt.Errorf("decoding keyPrefix as hex: %s", err)
+			return nil, fmt.Errorf("decoding keyPrefix as hex: %w", err)
 		}
 		s.keyPrefix = keyPrefixBytes
 	}
@@ -181,7 +181,7 @@ func (s *Store) FlushPuts(ctx context.Context) error {
 		return err
 	}
 	if len(errs) != 0 {
-		return fmt.Errorf("apply bulk error: %s", errs)
+		return fmt.Errorf("apply bulk error: %w", multierr.Combine(errs...))
 	}
 	s.batchPut.Reset()
 	return nil
@@ -240,7 +240,7 @@ func (s *Store) BatchDelete(ctx context.Context, deletionKeys [][]byte) (err err
 				return err
 			}
 			if len(errs) != 0 {
-				return fmt.Errorf("apply bulk error: %s", errs)
+				return fmt.Errorf("apply bulk error: %w", multierr.Combine(errs...))
 			}
 			keys = make([]string, len(deletionKeys))
 			values = make([]*bigtable.Mutation, len(deletionKeys))
@@ -257,7 +257,7 @@ func (s *Store) BatchDelete(ctx context.Context, deletionKeys [][]byte) (err err
 			return err
 		}
 		if len(errs) != 0 {
-			return fmt.Errorf("apply bulk error: %s", errs)
+			return fmt.Errorf("apply bulk error: %w", multierr.Combine(errs...))
 		}
 	}
 	return nil

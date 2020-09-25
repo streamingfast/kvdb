@@ -140,7 +140,7 @@ func (b *Bigtable) ShouldFlushMutations() bool {
 func (b *Bigtable) FlushAllMutations(ctx context.Context) error {
 	for _, table := range b.tables {
 		if err := table.FlushMutations(ctx); err != nil {
-			return fmt.Errorf("error flushing %s: %s", table.Name, err)
+			return fmt.Errorf("error flushing %s: %w", table.Name, err)
 		}
 	}
 

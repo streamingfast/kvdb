@@ -12,7 +12,7 @@ It is used by **[dfuse](https://github.com/dfuse-io/dfuse)**.
 ```go
 db, err := store.New(dsn)
 if err != nil {
-    return fmt.Errorf("failed setting up db: %s", err)
+    return fmt.Errorf("failed setting up db: %w", err)
 }
 ```
 

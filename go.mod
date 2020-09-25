@@ -3,7 +3,7 @@ module github.com/dfuse-io/kvdb
 require (
 	cloud.google.com/go/bigtable v1.2.0
 	github.com/OneOfOne/xxhash v1.2.5 // indirect
-	github.com/dfuse-io/logging v0.0.0-20200407175011-14021b7a79af
+	github.com/dfuse-io/logging v0.0.0-20200908182738-02ce9b245eeb
 	github.com/dgraph-io/badger/v2 v2.0.3
 	github.com/edsrzf/mmap-go v0.0.0-20160512033002-935e0e8a636c // indirect
 	github.com/golang/protobuf v1.3.4
@@ -22,7 +22,7 @@ require (
 	github.com/stretchr/testify v1.4.0
 	github.com/tikv/client-go v0.0.0-20200110101306-a3ebdb020c83
 	go.opencensus.io v0.22.2
-	go.uber.org/multierr v1.5.0 // indirect
+	go.uber.org/multierr v1.5.0
 	go.uber.org/zap v1.14.0
 	golang.org/x/crypto v0.0.0-20191206172530-e9b2fee46413 // indirect
 	golang.org/x/sys v0.0.0-20200202164722-d101bd2416d5 // indirect

@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"cloud.google.com/go/bigtable"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -111,7 +112,7 @@ func (b *BaseTable) doFlushMutations(ctx context.Context, keys []string, mutatio
 		return err
 	}
 	if len(errs) != 0 {
-		return fmt.Errorf("apply bulk error for table %s: %s", b.Name, errs)
+		return fmt.Errorf("apply bulk error for table %s: %w", b.Name, multierr.Combine(errs...))
 	}
 
 	return nil

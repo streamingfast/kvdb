@@ -41,7 +41,7 @@ var H = hex.EncodeToString
 func MustProtoMarshal(obj proto.Message) []byte {
 	bytes, err := proto.Marshal(obj)
 	if err != nil {
-		panic(fmt.Errorf("should be able to marshal proto: %s", err))
+		panic(fmt.Errorf("should be able to marshal proto: %w", err))
 	}
 
 	return bytes

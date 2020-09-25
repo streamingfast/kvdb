@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
 
-	"github.com/dfuse-io/logging"
-
 	"github.com/dfuse-io/kvdb/store"
+	"github.com/dfuse-io/logging"
 	"github.com/dgraph-io/badger/v2"
 	"github.com/dgraph-io/badger/v2/options"
 	"go.uber.org/zap"
@@ -43,7 +43,7 @@ func NewStore(dsnString string) (store.KVStore, error) {
 
 	createPath := filepath.Dir(dsn.Path)
 	if err := os.MkdirAll(createPath, 0755); err != nil {
-		return nil, fmt.Errorf("creating path %q: %s", createPath, err)
+		return nil, fmt.Errorf("creating path %q: %w", createPath, err)
 	}
 
 	db, err := badger.Open(badger.DefaultOptions(dsn.Path).WithLogger(nil).WithCompression(options.Snappy))
@@ -51,9 +51,11 @@ func NewStore(dsnString string) (store.KVStore, error) {
 		return nil, fmt.Errorf("badger new: open badger db: %w", err)
 	}
 
-	//Deprecated: this is only used for backward compatible support as we deprecated this support in Badger
-	// It only allow for seamless decompression -- otherwise Snappy kicks in automatically
-	compressor, err := store.NewCompressor(dsn.Query().Get("compression"))
+	// Deprecated: this is only used for backward compatible support as we deprecated this support in Badger
+	// It only allows for seamless decompression -- otherwise Snappy kicks in automatically. This is why we
+	// use `math.MaxInt64` as the threshold to use for compression, this way, compression never kicks in
+	// (because size will always be < than `math.MaxInt64`).
+	compressor, err := store.NewCompressor(dsn.Query().Get("compression"), math.MaxInt64)
 	if err != nil {
 		return nil, err
 	}

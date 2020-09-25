@@ -14,6 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	logging.TestingOverride()
+}
+
 func TestAll(t *testing.T) {
 	storetest.TestAll(t, "NetKV", newTestNetKVFactory(t))
 }

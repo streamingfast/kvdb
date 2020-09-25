@@ -134,32 +134,22 @@ func TestPurgeable(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 	err = ephemeralDriver.PurgeKeys(context.Background())
 	require.NoError(t, err)
 
-	// Ensuring that the Keys have been purged correctly
+	// Ensuring that the deleted keys have been purged correctly
 	for _, test := range tests {
-		// testing GET function
 		v, err := driver.Get(context.Background(), test.key)
 		if test.height < (purgeBelowHeight - options.purgeableTTLInBlocks) {
-			require.Error(t, err)
+			// FIXME: On TiKV implementation, this does not work as expected returning some keys that should be "deleted",
+			//        tried adding a 15s wait between the `BatchDelete` above and the actual retrieval of the key, but this didn't
+			//        fix it.
+			//
+			//        Maybe someone with fresh eyes could take a second look of as why this behavior is happening.
+			require.Error(t, err, "Retrieved value for key %q (hex %x) was %q (hex %x)", string(test.key), test.key, string(v), v)
 			assert.Equal(t, err, store.ErrNotFound)
 		} else {
 			require.NoError(t, err)
 			require.Equal(t, test.value, v)
 		}
 	}
-
-	// Ensuring that the Deletion Keys have been purged correctly
-	for _, test := range tests {
-		// testing GET function
-		v, err := driver.Get(context.Background(), test.key)
-		if test.height < (purgeBelowHeight - options.purgeableTTLInBlocks) {
-			require.Error(t, err)
-			assert.Equal(t, err, store.ErrNotFound)
-		} else {
-			require.NoError(t, err)
-			require.Equal(t, test.value, v)
-		}
-	}
-
 }
 
 func TestBasic(t *testing.T, driver store.KVStore, options kvStoreOptions) {
@@ -273,12 +263,15 @@ func TestBasic(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 
 	// testing GET with a flush
 	for _, kv := range all {
-		// testing GET function
-		_, err := driver.Get(context.Background(), kv.Key)
-		require.Error(t, err)
+		value, err := driver.Get(context.Background(), kv.Key)
+		// FIXME: On TiKV implementation, this does not work as expected returning some keys that should be "deleted",
+		//        tried adding a 15s wait between the `BatchDelete` above and the actual retrieval of the key, but this didn't
+		//        fix it.
+		//
+		//        Maybe someone with fresh eyes could take a second look of as why this behavior is happening.
+		require.Error(t, err, "Retrieved value for key %q (hex %x) was %q (hex %x)", string(kv.Key), kv.Key, string(value), value)
 		assert.Equal(t, err, store.ErrNotFound)
 	}
-
 }
 
 func testPrefix(t *testing.T, driver store.KVStore, prefix []byte, limit int, exp []store.KV) {
