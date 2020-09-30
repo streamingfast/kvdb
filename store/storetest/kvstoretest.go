@@ -13,6 +13,7 @@ import (
 )
 
 type kvStoreOptions struct {
+	enableEmptyValue          bool
 	withPurgeable             bool
 	purgeableStoreTablePrefix []byte
 	purgeableTTLInBlocks      uint64
@@ -20,19 +21,26 @@ type kvStoreOptions struct {
 
 var kvstoreTests = []struct {
 	name    string
-	test    func(t *testing.T, driver store.KVStore, options kvStoreOptions)
+	test    func(t *testing.T, driver store.KVStore, capabilities *DriverCapabilities, options kvStoreOptions)
 	options kvStoreOptions
 }{
 	{
 		name: "basic",
-		test: TestBasic,
+		test: testBasic,
 		options: kvStoreOptions{
 			withPurgeable: false,
 		},
 	},
 	{
+		name: "empty",
+		test: testEmtpyValue,
+		options: kvStoreOptions{
+			enableEmptyValue: true,
+		},
+	},
+	{
 		name: "purgeable",
-		test: TestPurgeable,
+		test: testPurgeable,
 		options: kvStoreOptions{
 			withPurgeable:             true,
 			purgeableStoreTablePrefix: []byte{0x09},
@@ -41,21 +49,27 @@ var kvstoreTests = []struct {
 	},
 }
 
-func TestAllKVStore(t *testing.T, driverName string, driverFactory DriverFactory) {
+func testAllKVStore(t *testing.T, driverName string, driverFactory DriverFactory) {
 	for _, test := range kvstoreTests {
 		testName := driverName + "/" + test.name
 		t.Run(testName, func(t *testing.T) {
-			driver, closer := driverFactory()
+			var options []store.Option
+			if test.options.enableEmptyValue {
+				options = append(options, store.WithEmptyValue())
+			}
+
+			driver, capabilities, closer := driverFactory(options...)
 			defer closer()
 			if test.options.withPurgeable {
 				driver = store.NewPurgeableStore(test.options.purgeableStoreTablePrefix, driver, test.options.purgeableTTLInBlocks)
 			}
-			test.test(t, driver, test.options)
+
+			test.test(t, driver, capabilities, test.options)
 		})
 	}
 }
 
-func TestPurgeable(t *testing.T, driver store.KVStore, options kvStoreOptions) {
+func testPurgeable(t *testing.T, driver store.KVStore, _ *DriverCapabilities, options kvStoreOptions) {
 	tests := []struct {
 		key    []byte
 		value  []byte
@@ -152,7 +166,9 @@ func TestPurgeable(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 	}
 }
 
-func TestBasic(t *testing.T, driver store.KVStore, options kvStoreOptions) {
+func testBasic(t *testing.T, driver store.KVStore, _ *DriverCapabilities, _ kvStoreOptions) {
+	bigData := []byte("this is a long byte sequence with more than 50 bytes to we can properly test compression")
+
 	all := []store.KV{
 		{Key: []byte("a"), Value: []byte("1")},
 		{Key: []byte("ba"), Value: []byte("2")},
@@ -160,6 +176,7 @@ func TestBasic(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 		{Key: []byte("ba2"), Value: []byte("4")},
 		{Key: []byte("bb"), Value: []byte("5")},
 		{Key: []byte("c"), Value: []byte("6")},
+		{Key: []byte("g"), Value: bigData},
 	}
 
 	// testing PUT function
@@ -167,13 +184,6 @@ func TestBasic(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 		err := driver.Put(context.Background(), kv.Key, kv.Value)
 		require.NoError(t, err)
 	}
-
-	// testing GET without a flush  //// SKIP: Some backends still flush.
-	// for _, kv := range all {
-	// 	// testing GET function
-	// 	_, err := driver.Get(context.Background(), kv.Key)
-	// 	require.Equal(t, kvdb.ErrNotFound, err)
-	// }
 
 	// testing Flush Put
 	err := driver.FlushPuts(context.Background())
@@ -194,7 +204,7 @@ func TestBasic(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 	// testing Prefix without limit
 	testPrefix(t, driver, nil, store.Unlimited, all)
 	testPrefix(t, driver, []byte("a"), store.Unlimited, all[:1])
-	testPrefix(t, driver, []byte("c"), store.Unlimited, all[5:])
+	testPrefix(t, driver, []byte("c"), store.Unlimited, all[5:6])
 	testPrefix(t, driver, []byte("b"), store.Unlimited, all[1:5])
 	testPrefix(t, driver, []byte("ba"), store.Unlimited, all[1:4])
 
@@ -271,6 +281,43 @@ func TestBasic(t *testing.T, driver store.KVStore, options kvStoreOptions) {
 		//        Maybe someone with fresh eyes could take a second look of as why this behavior is happening.
 		require.Error(t, err, "Retrieved value for key %q (hex %x) was %q (hex %x)", string(kv.Key), kv.Key, string(value), value)
 		assert.Equal(t, err, store.ErrNotFound)
+	}
+}
+
+func testEmtpyValue(t *testing.T, driver store.KVStore, capabilities *DriverCapabilities, options kvStoreOptions) {
+	key := []byte("randomkey")
+	canAddEmptyValue := options.enableEmptyValue || capabilities.SupportsEmptyValue
+
+	err := driver.Put(context.Background(), key, nil)
+	if !canAddEmptyValue {
+		require.Error(t, err)
+	} else {
+		require.NoError(t, err)
+	}
+
+	err = driver.FlushPuts(context.Background())
+	require.NoError(t, err)
+
+	v, err := driver.Get(context.Background(), key)
+	if !canAddEmptyValue {
+		require.Equal(t, err, store.ErrNotFound)
+	} else {
+		require.NoError(t, err)
+		require.Equal(t, []byte(nil), v)
+	}
+
+	var got []store.KV
+	it := driver.BatchGet(context.Background(), [][]byte{key})
+	for it.Next() {
+		got = append(got, it.Item())
+	}
+	require.NoError(t, it.Err())
+
+	if !canAddEmptyValue {
+		require.Len(t, got, 0)
+	} else {
+		require.Len(t, got, 1)
+		require.Equal(t, []byte(nil), got[0].Value)
 	}
 }
 

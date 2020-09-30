@@ -26,14 +26,14 @@ func TestAll(t *testing.T) {
 }
 
 func newTestFactory(t *testing.T) storetest.DriverFactory {
-	return func(opts ...store.Option) (store.KVStore, storetest.DriverCleanupFunc) {
+	return func(opts ...store.Option) (store.KVStore, *storetest.DriverCapabilities, storetest.DriverCleanupFunc) {
 		kvStore, err := store.New("bigkv://dev.dev/dev?createTable=true", opts...)
 		if err != nil {
 			t.Skip("bigtable unreachable, cannot run tests") // FIXME: this just times out
-			return nil, nil
+			return nil, nil, nil
 		}
 		require.NoError(t, err)
-		return kvStore, func() {
+		return kvStore, storetest.NewDriverCapabilities(), func() {
 			kvStore.(io.Closer).Close()
 		}
 	}

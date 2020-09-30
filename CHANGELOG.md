@@ -5,13 +5,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+- [`tikv`] Fixed invalid `store.ErrNotFound` being thrown when `store.WithEmptyValue` is used and the value stored is empty.
+- [`tikv`] Fixed `store.WithEmptyValue` support when using compression that was not compressing the "formatted" value that should have been sent to TiKV.
+
 ### Changed
+- [`tikv`] Changed batch size threshold default value to 7MiB, the idea is to reduce the chance that the batch reach this value.
 - [`tikv`] Added ability to customize batch time threshold by using `batch_time_threshold=<value>` query parameter in dsn (accepts `time.Duration` string formats).
 - [`tikv`] Added ability to customize batch ops threshold by using `batch_ops_threshold=<value>` query parameter in dsn (accepts positive numbers).
 - [`tikv`] Added ability to customize batch size threshold by using `batch_size_threshold=<value>` query parameter in dsn (accepts positive numbers).
 - [`tikv`] Added ability to customize compression size threshold by using `compression_size_threshold=<value>` query parameter in dsn (accepts positive numbers).
 - [`tikv`] Re-added support for compression to overcome issue where single element are bigger than 8MB. This is now an opt-in feature, to activate, use `compression=zstd` query parameter in dsn.
-- [`tikv`] Default batch size threshold ifs now 8MiB, which is the default max raft entry size in TiKV.
+- [`tikv`] Default batch size threshold is now 8MiB, which is the default max raft entry size in TiKV.
 - [`core`] **BREAKING** Renamed `store.BachOp` to `store.BatchOp` (fixed typo in `Bach`).
 - [`core`] Added `Close` method on `store.KVStore`.
 

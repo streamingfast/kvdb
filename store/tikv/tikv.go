@@ -82,8 +82,8 @@ func NewStore(dsnString string) (store.KVStore, error) {
 		return nil, fmt.Errorf("new compressor: %w", err)
 	}
 
-	// Use batch size threshold (in bytes) if present, otherwise use ~8MiB
-	batchSizeThreshold, rawValue, err := store.AsIntOption(dsnQuery.Get("batch_size_threshold"), 8*1024*1024)
+	// Use batch size threshold (in bytes) if present, otherwise use ~7MiB
+	batchSizeThreshold, rawValue, err := store.AsIntOption(dsnQuery.Get("batch_size_threshold"), 7*1024*1024)
 	if err != nil {
 		return nil, fmt.Errorf("batch size threshold option %q is not a valid number: %w", rawValue, err)
 	}
@@ -125,6 +125,10 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
+	if len(value) == 0 && !s.emptyValuePossible {
+		return fmt.Errorf("empty value not supported by this store, if you expect to need to store empty value, please use `store.WithEmptyValue()` when creating the store to enable them")
+	}
+
 	s.batchPut.Op(s.withPrefix(key), s.formatValue(value))
 	if s.batchPut.ShouldFlush() {
 		return s.FlushPuts(ctx)
@@ -166,14 +170,23 @@ func (s *Store) Get(ctx context.Context, key []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	if traceEnabled {
+		zlog.Debug("received raw value for get", zap.Stringer("key", store.Key(key)), zap.Stringer("value", store.Key(val)))
+	}
+
+	// Anything that is returned here will have at least one byte because at insertion time, the value either had more than one
+	// or we added one ourself because of the `WithEmptyValue` option. So it's safe here to check that the value is `nil`.
+	if val == nil {
+		return nil, store.ErrNotFound
+	}
+
 	val, err = s.unformatValue(val)
 	if err != nil {
 		return nil, fmt.Errorf("unformat value: %w", err)
 	}
 
-	// We need to check after unformatting because the value might have changed
-	if val == nil {
-		return nil, store.ErrNotFound
+	if traceEnabled {
+		zlog.Debug("returning value for get", zap.Stringer("key", store.Key(key)), zap.Stringer("value", store.Key(val)))
 	}
 
 	return val, nil
@@ -197,7 +210,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 			}
 
 			// The key must **not** be unprefixed here because it's the one from the loop which is already unprefixed
-			if !kr.PushItem(store.KV{key, value}) {
+			if !kr.PushItem(store.KV{Key: key, Value: value}) {
 				break
 			}
 		}
@@ -403,7 +416,7 @@ func (s *Store) formatValue(v []byte) (out []byte) {
 		out = append(v, emptyValueByte)
 	}
 
-	return s.compressor.Compress(v)
+	return s.compressor.Compress(out)
 }
 
 func (s *Store) unformatValue(v []byte) (out []byte, err error) {
@@ -414,7 +427,13 @@ func (s *Store) unformatValue(v []byte) (out []byte, err error) {
 
 	byteCount := len(v)
 	if s.emptyValuePossible && byteCount >= 1 {
-		return v[0 : byteCount-1], err
+		// We have a single byte and about to strip 1 byte, results in a nil output
+		if byteCount == 1 {
+			return nil, nil
+		}
+
+		return v[0 : byteCount-1], nil
 	}
-	return v, err
+
+	return v, nil
 }

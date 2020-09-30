@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -27,22 +28,37 @@ func TestAll(t *testing.T) {
 		return
 	}
 
-	storetest.TestAll(t, "tikv", newTestFactory(t, tikvDSN))
+	parsedDSN, err := url.Parse(tikvDSN)
+	require.NoError(t, err)
+
+	rawDSN, err := url.PathUnescape(parsedDSN.String())
+	require.NoError(t, err)
+
+	storetest.TestAll(t, "tikv", newTestFactory(t, 1, rawDSN))
+
+	// FIXME: This causes too much coupling with actual tests implementations and knownledge about what it requires.
+	//        Ideally, the storetest package would be able to create the store with compression (and its config) by
+	//        itself.
+	storetest.TestAll(t, "tikv/compression", newTestFactory(t, 2, rawDSN+"?compression=zstd&compression_size_threshold=25"))
 }
 
-func newTestFactory(t *testing.T, dsn string) storetest.DriverFactory {
-	return func(opts ...store.Option) (store.KVStore, storetest.DriverCleanupFunc) {
+func newTestFactory(t *testing.T, seed int64, dsn string) storetest.DriverFactory {
+	return func(opts ...store.Option) (store.KVStore, *storetest.DriverCapabilities, storetest.DriverCleanupFunc) {
 		// Auto add a prefix to the path if asking for it
-		generator := rand.New(rand.NewSource(time.Now().UnixNano()))
+		generator := rand.New(rand.NewSource(time.Now().UnixNano() + seed))
 		dsn = strings.ReplaceAll(dsn, "{prefix}", fmt.Sprintf("%x", generator.Int()))
 
 		kvStore, err := store.New(dsn, opts...)
 		if err != nil {
 			t.Skip(fmt.Errorf("pd0 unreachable, cannot run tests: %w", err)) // FIXME: this just times out
-			return nil, nil
+			return nil, nil, nil
 		}
 		require.NoError(t, err)
-		return kvStore, func() {
+
+		capabilities := storetest.NewDriverCapabilities()
+		capabilities.SupportsEmptyValue = false
+
+		return kvStore, capabilities, func() {
 			kvStore.(io.Closer).Close()
 		}
 	}

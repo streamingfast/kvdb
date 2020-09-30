@@ -11,6 +11,7 @@ import (
 	_ "github.com/dfuse-io/kvdb/store/badger"
 	netkvserver "github.com/dfuse-io/kvdb/store/netkv/server"
 	"github.com/dfuse-io/kvdb/store/storetest"
+	"github.com/dfuse-io/logging"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +24,7 @@ func TestAll(t *testing.T) {
 }
 
 func newTestNetKVFactory(t *testing.T) storetest.DriverFactory {
-	return func(opts ...store.Option) (store.KVStore, storetest.DriverCleanupFunc) {
+	return func(opts ...store.Option) (store.KVStore, *storetest.DriverCapabilities, storetest.DriverCleanupFunc) {
 		// Start a server
 		dir, err := ioutil.TempDir("", "kvdb-netkv-server")
 		require.NoError(t, err)
@@ -37,11 +38,10 @@ func newTestNetKVFactory(t *testing.T) storetest.DriverFactory {
 		kvStore, err := store.New(dsn2, opts...)
 		require.NoError(t, err)
 
-		return kvStore, func() {
+		return kvStore, storetest.NewDriverCapabilities(), func() {
 			server.Close()
 			time.Sleep(100 * time.Millisecond)
-			// err := os.RemoveAll(dir)
-			// require.NoError(t, err)
+
 		}
 	}
 }

@@ -57,7 +57,9 @@ Ensure you have installed:
 - helm (v3) (install script `curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash`)
 
 This is extracted from https://tikv.org/docs/4.0/tasks/try/tikv-operator/#step-2-deploy-tikv-operator but
-giving here as a quick succession of steps without explanation
+giving here as a quick succession of steps without explanation.
+
+An automatic script exists in `./devel/start_tikv.sh`, it streamlines the instructions below.
 
 ```
 minikube start # If you don't have a local configured cluster
