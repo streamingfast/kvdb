@@ -129,11 +129,17 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 		return fmt.Errorf("empty value not supported by this store, if you expect to need to store empty value, please use `store.WithEmptyValue()` when creating the store to enable them")
 	}
 
-	s.batchPut.Op(s.withPrefix(key), s.formatValue(value))
-	if s.batchPut.ShouldFlush() {
-		return s.FlushPuts(ctx)
+	formattedKey := s.withPrefix(key)
+	formattedValue := s.formatValue(value)
+
+	if s.batchPut.WouldFlushNext(len(formattedValue)) {
+		err := s.FlushPuts(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
+	s.batchPut.Op(formattedKey, formattedValue)
 	return nil
 }
 

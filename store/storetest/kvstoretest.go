@@ -157,7 +157,7 @@ func testPurgeable(t *testing.T, driver store.KVStore, _ *DriverCapabilities, op
 			//        fix it.
 			//
 			//        Maybe someone with fresh eyes could take a second look of as why this behavior is happening.
-			require.Error(t, err, "Retrieved value for key %q (hex %x) was %q (hex %x)", string(test.key), test.key, string(v), v)
+			require.Error(t, err, "Expecting a store.ErrNotFound but got value for key %q (hex %x), content was %q (hex %x)", string(test.key), test.key, string(v), v)
 			assert.Equal(t, err, store.ErrNotFound)
 		} else {
 			require.NoError(t, err)
@@ -279,7 +279,7 @@ func testBasic(t *testing.T, driver store.KVStore, _ *DriverCapabilities, _ kvSt
 		//        fix it.
 		//
 		//        Maybe someone with fresh eyes could take a second look of as why this behavior is happening.
-		require.Error(t, err, "Retrieved value for key %q (hex %x) was %q (hex %x)", string(kv.Key), kv.Key, string(value), value)
+		require.Error(t, err, "Expecting a store.ErrNotFound but got value for key %q (hex %x), content was %q (hex %x)", string(kv.Key), kv.Key, string(value), value)
 		assert.Equal(t, err, store.ErrNotFound)
 	}
 }

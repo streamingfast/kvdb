@@ -69,11 +69,15 @@ func NewStore(dsnString string) (store.KVStore, error) {
 		return nil, err
 	}
 
+	// FIXME: Sadly, Bigkv and TiKV uses different parameters name for configuring the batch manager.
+	//        I tend to see name here better than the ones in TiKV even though I think that starting with
+	//        `batch-` would be preferable. We also have a naming convention issue, we use `camelCase` here
+	//        but `snake-case` in TiKV. We should decide on our standard convention for parameter naming.
 	maxBytesBeforeFlush := uint64(70000000)
 	if qMaxBytes := dsn.Query().Get("maxBytesBeforeFlush"); qMaxBytes != "" {
 		ms, err := strconv.ParseUint(qMaxBytes, 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("dsn: invalid parameter for max-blocks-before-flush, %s", err)
+			return nil, fmt.Errorf("dsn: invalid parameter for maxBytesBeforeFlush, %s", err)
 		}
 		maxBytesBeforeFlush = ms
 	}
@@ -82,7 +86,7 @@ func NewStore(dsnString string) (store.KVStore, error) {
 	if qMaxSeconds := dsn.Query().Get("maxSecondsBeforeFlush"); qMaxSeconds != "" {
 		ms, err := strconv.ParseUint(qMaxSeconds, 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("dsn: invalid parameter for max-blocks-before-flush, %s", err)
+			return nil, fmt.Errorf("dsn: invalid parameter for maxSecondsBeforeFlush, %s", err)
 		}
 		maxSecondsBeforeFlush = ms
 	}
@@ -91,7 +95,7 @@ func NewStore(dsnString string) (store.KVStore, error) {
 	if qMaxRows := dsn.Query().Get("maxRowsBeforeFlush"); qMaxRows != "" {
 		mb, err := strconv.ParseUint(qMaxRows, 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("dsn: invalid parameter for max-rows-before-flush, %s", err)
+			return nil, fmt.Errorf("dsn: invalid parameter for maxRowsBeforeFlush, %s", err)
 		}
 		maxRowsBeforeFlush = mb
 	}
@@ -154,11 +158,15 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
-	s.batchPut.Op(s.withPrefix(key), value)
-	if s.batchPut.ShouldFlush() {
-		return s.FlushPuts(ctx)
+	formattedKey := s.withPrefix(key)
+	if s.batchPut.WouldFlushNext(len(value)) {
+		err := s.FlushPuts(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
+	s.batchPut.Op(formattedKey, value)
 	return nil
 }
 
