@@ -41,10 +41,11 @@ func (b *BatchOp) ShouldFlush() bool {
 	return b.shouldFlush(b.size, b.puts)
 }
 
-// WouldFlushNext determines if addind another item with the specified size would trigger
-// a flush of the batch. This can be used to push a batch pre-emptively
-func (b *BatchOp) WouldFlushNext(size int) bool {
-	return b.shouldFlush(b.size+size, b.puts+1)
+// WouldFlushNext determines if adding another item with the specified `len(key) + len(value)` would trigger
+// a flush of the batch. This can be used to push a batch preemptively before inserting and
+// item that would make the batch bigger than allowed max size.
+func (b *BatchOp) WouldFlushNext(key []byte, value []byte) bool {
+	return b.shouldFlush(b.size+len(key)+len(value), b.puts+1)
 }
 
 func (b *BatchOp) shouldFlush(size int, opCount int) bool {

@@ -159,7 +159,7 @@ func (s *Store) Close() error {
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 	formattedKey := s.withPrefix(key)
-	if s.batchPut.WouldFlushNext(len(value)) {
+	if s.batchPut.WouldFlushNext(formattedKey, value) {
 		err := s.FlushPuts(ctx)
 		if err != nil {
 			return err

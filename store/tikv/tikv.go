@@ -132,7 +132,7 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 	formattedKey := s.withPrefix(key)
 	formattedValue := s.formatValue(value)
 
-	if s.batchPut.WouldFlushNext(len(formattedValue)) {
+	if s.batchPut.WouldFlushNext(formattedKey, formattedValue) {
 		err := s.FlushPuts(ctx)
 		if err != nil {
 			return err
