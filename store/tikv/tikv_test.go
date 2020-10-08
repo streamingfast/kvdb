@@ -34,7 +34,8 @@ func TestAll(t *testing.T) {
 	rawDSN, err := url.PathUnescape(parsedDSN.String())
 	require.NoError(t, err)
 
-	storetest.TestAll(t, "tikv", newTestFactory(t, 1, rawDSN))
+	// We use a low scan limit so we ensure that it passes through multiple loops in tikv scanning routine
+	storetest.TestAll(t, "tikv", newTestFactory(t, 1, rawDSN+"?tikv_raw_max_scan_limit=2"))
 
 	// FIXME: This causes too much coupling with actual tests implementations and knownledge about what it requires.
 	//        Ideally, the storetest package would be able to create the store with compression (and its config) by

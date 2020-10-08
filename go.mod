@@ -20,7 +20,7 @@ require (
 	github.com/prometheus/client_golang v1.1.0 // indirect
 	github.com/sirupsen/logrus v1.4.2 // indirect
 	github.com/stretchr/testify v1.4.0
-	github.com/tikv/client-go v0.0.0-20200110101306-a3ebdb020c83
+	github.com/tikv/client-go v0.0.0-20200824032810-95774393107b
 	go.opencensus.io v0.22.2
 	go.uber.org/multierr v1.5.0
 	go.uber.org/zap v1.14.0

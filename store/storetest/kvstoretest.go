@@ -218,17 +218,15 @@ func testBasic(t *testing.T, driver store.KVStore, _ *DriverCapabilities, _ kvSt
 	testPrefix(t, driver, []byte("b"), 3, all[1:4])
 	testPrefix(t, driver, []byte("ba"), 10, all[1:4])
 
-	// testing BatchPrefix without limit
-	testBatchPrefix(t, driver, [][]byte{[]byte("ba")}, store.Unlimited, all[1:4]...)
-	testBatchPrefix(t, driver, [][]byte{[]byte("ba"), []byte("c")}, store.Unlimited, all[1], all[2], all[3], all[5])
-	testBatchPrefix(t, driver, [][]byte{[]byte("a"), []byte("c")}, store.Unlimited, all[0], all[5])
-	testBatchPrefix(t, driver, [][]byte{[]byte("d"), []byte("f")}, store.Unlimited)
+	testBatchPrefix(t, "single, unlimited", driver, [][]byte{[]byte("ba")}, store.Unlimited, all[1:4]...)
+	testBatchPrefix(t, "multiple series, unlimited", driver, [][]byte{[]byte("ba"), []byte("c")}, store.Unlimited, all[1], all[2], all[3], all[5])
+	testBatchPrefix(t, "multiple single each, unlimited", driver, [][]byte{[]byte("a"), []byte("c")}, store.Unlimited, all[0], all[5])
+	testBatchPrefix(t, "multiple all empty, unlimited", driver, [][]byte{[]byte("d"), []byte("f")}, store.Unlimited)
 
-	// testing BatchPrefix with limit
-	testBatchPrefix(t, driver, [][]byte{[]byte("ba")}, 1, all[1])
-	testBatchPrefix(t, driver, [][]byte{[]byte("ba"), []byte("c")}, 2, all[1], all[2])
-	testBatchPrefix(t, driver, [][]byte{[]byte("a"), []byte("c")}, 1, all[0])
-	testBatchPrefix(t, driver, [][]byte{[]byte("d"), []byte("f")}, 10)
+	testBatchPrefix(t, "single, limited", driver, [][]byte{[]byte("ba")}, 1, all[1])
+	testBatchPrefix(t, "multiple series, limited", driver, [][]byte{[]byte("ba"), []byte("c")}, 2, all[1], all[2])
+	testBatchPrefix(t, "multiple single each, limited", driver, [][]byte{[]byte("a"), []byte("c")}, 1, all[0])
+	testBatchPrefix(t, "multiple all empty, limited", driver, [][]byte{[]byte("d"), []byte("f")}, 10)
 
 	// testing Scan without limit
 	testScan(t, driver, []byte("a"), []byte("a"), store.Unlimited, nil)
@@ -332,21 +330,23 @@ func testPrefix(t *testing.T, driver store.KVStore, prefix []byte, limit int, ex
 	require.Equal(t, exp, got)
 }
 
-func testBatchPrefix(t *testing.T, driver store.KVStore, prefixes [][]byte, limit int, exp ...store.KV) {
-	var got []store.KV
-	itr := driver.BatchPrefix(context.Background(), prefixes, limit)
-	for itr.Next() {
-		got = append(got, itr.Item())
-	}
+func testBatchPrefix(t *testing.T, name string, driver store.KVStore, prefixes [][]byte, limit int, exp ...store.KV) {
+	t.Run(name, func(t *testing.T) {
+		var got []store.KV
+		itr := driver.BatchPrefix(context.Background(), prefixes, limit)
+		for itr.Next() {
+			got = append(got, itr.Item())
+		}
 
-	stringPrefixes := make([]string, len(prefixes))
-	for i, prefix := range prefixes {
-		stringPrefixes[i] = string(prefix)
-	}
+		stringPrefixes := make([]string, len(prefixes))
+		for i, prefix := range prefixes {
+			stringPrefixes[i] = string(prefix)
+		}
 
-	testPrintKVs(fmt.Sprintf("test prefixes with prefix %q", strings.Join(stringPrefixes, ", ")), got)
-	require.NoError(t, itr.Err())
-	require.Equal(t, exp, got)
+		testPrintKVs(fmt.Sprintf("test prefixes with prefix %q", strings.Join(stringPrefixes, ", ")), got)
+		require.NoError(t, itr.Err())
+		require.Equal(t, exp, got)
+	})
 }
 
 func testScan(t *testing.T, driver store.KVStore, start, end []byte, limit int, exp []store.KV) {

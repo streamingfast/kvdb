@@ -6,10 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
+- [`tikv`] Fixed `store.Scan` not returning more than 10561 rows.
 - [`tikv`] Fixed invalid `store.ErrNotFound` being thrown when `store.WithEmptyValue` is used and the value stored is empty.
 - [`tikv`] Fixed `store.WithEmptyValue` support when using compression that was not compressing the "formatted" value that should have been sent to TiKV.
 
 ### Changed
+- [`tikv`] Improved implementation of `Prefix` and `BatchPrefix` by using TiKV client raw max scan limit value to iterate.
+- [`tikv`] Added ability to customize TiKV client raw max scan limit using `tikv_raw_max_scan_limit=<value>` query parameter in dsn (accepts positive numbers).
+- [`tikv`] Added ability to customize TiKV client raw max batch put size using `tikv_raw_max_batch_put_size=<value>` query parameter in dsn (accepts positive numbers).
+- [`tikv`] Added ability to customize TiKV client raw batch pair count using `tikv_raw_batch_pair_count=<value>` query parameter in dsn (accepts positive numbers).
+- [`tikv`] Re-implemented `store.BatchGet` using native TiKV client BatchGet.
 - [`tikv`] Changed batch size threshold default value to 7MiB, the idea is to reduce the chance that the batch reach this value.
 - [`tikv`] Added ability to customize batch time threshold by using `batch_time_threshold=<value>` query parameter in dsn (accepts `time.Duration` string formats).
 - [`tikv`] Added ability to customize batch ops threshold by using `batch_ops_threshold=<value>` query parameter in dsn (accepts positive numbers).

@@ -18,7 +18,9 @@ import (
 	"os"
 
 	"github.com/dfuse-io/logging"
+	"github.com/tikv/client-go/config"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var traceEnabled = os.Getenv("TRACE") == "true"
@@ -26,4 +28,15 @@ var zlog *zap.Logger
 
 func init() {
 	logging.Register("github.com/dfuse-io/kvdb/store/tikv", &zlog)
+}
+
+type tikvConfigRaw config.Raw
+
+func (c tikvConfigRaw) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	v := config.Raw(c)
+
+	enc.AddInt("max_scan_limit", v.MaxScanLimit)
+	enc.AddInt("max_batch_put_size", v.MaxBatchPutSize)
+	enc.AddInt("batch_pair_count", v.BatchPairCount)
+	return nil
 }

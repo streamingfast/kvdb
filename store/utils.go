@@ -56,7 +56,19 @@ func removeDSNOptionsFromURL(dsnURL *url.URL, keys []string) {
 	dsnURL.RawQuery = query.Encode()
 }
 
-func AsIntOption(rawValue string, defaultValue int) (int, string, error) {
+type DSNQuery url.Values
+
+func (q DSNQuery) StringOption(name string, defaultValue string) (value string, rawValue string) {
+	rawValue = url.Values(q).Get(name)
+	if rawValue == "" {
+		return defaultValue, rawValue
+	}
+
+	return rawValue, rawValue
+}
+
+func (q DSNQuery) IntOption(name string, defaultValue int) (int, string, error) {
+	rawValue := url.Values(q).Get(name)
 	if rawValue == "" {
 		return defaultValue, rawValue, nil
 	}
@@ -65,7 +77,8 @@ func AsIntOption(rawValue string, defaultValue int) (int, string, error) {
 	return value, rawValue, err
 }
 
-func AsDurationOption(rawValue string, defaultValue time.Duration) (time.Duration, string, error) {
+func (q DSNQuery) DurationOption(name string, defaultValue time.Duration) (time.Duration, string, error) {
+	rawValue := url.Values(q).Get(name)
 	if rawValue == "" {
 		return defaultValue, rawValue, nil
 	}
