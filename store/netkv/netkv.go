@@ -143,11 +143,11 @@ func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) (err error) {
 	return nil
 }
 
-func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int) *store.Iterator {
+func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) *store.Iterator {
 	it := store.NewIterator(ctx)
 
 	go func() {
-		resp, err := s.client.Scan(ctx, &pbnetkv.ScanRequest{Start: start, ExclusiveEnd: exclusiveEnd, Limit: uint64(limit)})
+		resp, err := s.client.Scan(ctx, &pbnetkv.ScanRequest{Start: start, ExclusiveEnd: exclusiveEnd, Limit: uint64(limit), Options: netkvReadOptions(options)})
 		if err != nil {
 			it.PushError(err)
 			return
@@ -173,14 +173,14 @@ func pushToIterator(it *store.Iterator, kv *pbnetkv.KeyValue, err error) bool {
 	}
 
 	// TODO: we'll check `NotFound` in the `BatchGet` eventually?
-	return it.PushItem(store.KV{kv.Key, kv.Value})
+	return it.PushItem(store.KV{Key: kv.Key, Value: kv.Value})
 }
 
-func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Iterator {
+func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ...store.ReadOption) *store.Iterator {
 	it := store.NewIterator(ctx)
 
 	go func() {
-		resp, err := s.client.Prefix(ctx, &pbnetkv.PrefixRequest{Prefix: prefix, Limit: uint64(limit)})
+		resp, err := s.client.Prefix(ctx, &pbnetkv.PrefixRequest{Prefix: prefix, Limit: uint64(limit), Options: netkvReadOptions(options)})
 		if err != nil {
 			it.PushError(err)
 			return
@@ -195,11 +195,11 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 	return it
 }
 
-func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limitPerPrefix int) *store.Iterator {
+func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limitPerPrefix int, options ...store.ReadOption) *store.Iterator {
 	it := store.NewIterator(ctx)
 
 	go func() {
-		resp, err := s.client.BatchPrefix(ctx, &pbnetkv.BatchPrefixRequest{Prefixes: prefixes, LimitPerPrefix: uint64(limitPerPrefix)})
+		resp, err := s.client.BatchPrefix(ctx, &pbnetkv.BatchPrefixRequest{Prefixes: prefixes, LimitPerPrefix: uint64(limitPerPrefix), Options: netkvReadOptions(options)})
 		if err != nil {
 			it.PushError(err)
 			return
@@ -212,4 +212,23 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limitPerPref
 		}
 	}()
 	return it
+}
+
+var defaultReadOptions = &pbnetkv.ReadOptions{
+	KeyOnly: false,
+}
+
+func netkvReadOptions(options []store.ReadOption) *pbnetkv.ReadOptions {
+	if len(options) == 0 {
+		return defaultReadOptions
+	}
+
+	readOptions := store.ReadOptions{}
+	for _, opt := range options {
+		opt.Apply(&readOptions)
+	}
+
+	return &pbnetkv.ReadOptions{
+		KeyOnly: readOptions.KeyOnly,
+	}
 }

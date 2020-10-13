@@ -261,17 +261,17 @@ func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) error {
 	return s.client.BatchDelete(ctx, keys)
 }
 
-func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int) *store.Iterator {
+func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
 	zlogger.Debug("range scan",
 		zap.Stringer("start_key", store.Key(start)),
 		zap.Stringer("exclusive_end_key", store.Key(exclusiveEnd)),
 	)
 
-	return s.scanIterator(ctx, zlogger, s.withPrefix(start), s.withPrefix(exclusiveEnd), store.Limit(limit))
+	return s.scanIterator(ctx, zlogger, s.withPrefix(start), s.withPrefix(exclusiveEnd), store.Limit(limit), options)
 }
 
-func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Iterator {
+func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
 	zlogger.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
 
@@ -284,10 +284,10 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 		exclusiveEnd = nil
 	}
 
-	return s.scanIterator(ctx, zlogger, startKey, exclusiveEnd, store.Limit(limit))
+	return s.scanIterator(ctx, zlogger, startKey, exclusiveEnd, store.Limit(limit), options)
 }
 
-func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *store.Iterator {
+func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
 	zlogger.Debug("batch prefix", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
 
@@ -324,7 +324,7 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *
 			}
 
 			shouldContinue := true
-			err := s.scan(ctx, zlogger, startKey, exclusiveEnd, scanLimit, func(kv store.KV) bool {
+			err := s.scan(ctx, zlogger, startKey, exclusiveEnd, scanLimit, options, func(kv store.KV) bool {
 				if !it.PushItem(kv) {
 					return false
 				}
@@ -354,10 +354,10 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *
 	return it
 }
 
-func (s *Store) scanIterator(ctx context.Context, zlogger *zap.Logger, startKey, exclusiveEnd []byte, limit store.Limit) *store.Iterator {
+func (s *Store) scanIterator(ctx context.Context, zlogger *zap.Logger, startKey, exclusiveEnd []byte, limit store.Limit, options []store.ReadOption) *store.Iterator {
 	it := store.NewIterator(ctx)
 	go func() {
-		err := s.scan(ctx, zlogger, startKey, exclusiveEnd, limit, func(kv store.KV) bool {
+		err := s.scan(ctx, zlogger, startKey, exclusiveEnd, limit, options, func(kv store.KV) bool {
 			if !it.PushItem(kv) {
 				return false
 			}
@@ -375,10 +375,13 @@ func (s *Store) scanIterator(ctx context.Context, zlogger *zap.Logger, startKey,
 	return it
 }
 
-func (s *Store) scan(ctx context.Context, zlogger *zap.Logger, startKey, exclusiveEnd []byte, limit store.Limit, onKV func(kv store.KV) bool) (err error) {
+func (s *Store) scan(ctx context.Context, zlogger *zap.Logger, startKey, exclusiveEnd []byte, limit store.Limit, options []store.ReadOption, onKV func(kv store.KV) bool) (err error) {
+	scanOption := tikvScanOption(options)
+
 	zlogger.Debug("scanning",
 		zap.Stringer("start_key", store.Key(startKey)),
 		zap.Stringer("exclusive_end_key", store.Key(exclusiveEnd)),
+		zap.Bool("key_only", scanOption.KeyOnly),
 		zap.Stringer("limit", store.Limit(limit)),
 	)
 
@@ -393,7 +396,7 @@ func (s *Store) scan(ctx context.Context, zlogger *zap.Logger, startKey, exclusi
 			}
 		}
 
-		keys, values, err := s.client.Scan(ctx, startKey, exclusiveEnd, int(sliceSize))
+		keys, values, err := s.client.Scan(ctx, startKey, exclusiveEnd, int(sliceSize), scanOption)
 		if err != nil {
 			return err
 		}
@@ -468,4 +471,21 @@ func (s *Store) unformatValue(v []byte) (out []byte, err error) {
 	}
 
 	return v, nil
+}
+
+var defaultScanOption = rawkv.DefaultScanOption()
+
+func tikvScanOption(options []store.ReadOption) rawkv.ScanOption {
+	if len(options) == 0 {
+		return defaultScanOption
+	}
+
+	readOptions := store.ReadOptions{}
+	for _, opt := range options {
+		opt.Apply(&readOptions)
+	}
+
+	return rawkv.ScanOption{
+		KeyOnly: readOptions.KeyOnly,
+	}
 }

@@ -63,15 +63,15 @@ func (t *TestKVDBDriver) BatchGet(ctx context.Context, keys [][]byte) *Iterator 
 	panic("test driver, not callable")
 }
 
-func (t *TestKVDBDriver) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int) *Iterator {
+func (t *TestKVDBDriver) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...ReadOption) *Iterator {
 	panic("test driver, not callable")
 }
 
-func (t *TestKVDBDriver) Prefix(ctx context.Context, prefix []byte, limit int) *Iterator {
+func (t *TestKVDBDriver) Prefix(ctx context.Context, prefix []byte, limit int, options ...ReadOption) *Iterator {
 	panic("test driver, not callable")
 }
 
-func (t *TestKVDBDriver) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *Iterator {
+func (t *TestKVDBDriver) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int, options ...ReadOption) *Iterator {
 	panic("test driver, not callable")
 }
 

@@ -1,14 +1,17 @@
 package bigkv
 
 import (
+	"fmt"
 	"io"
+	"math/rand"
 	"os"
+	"strings"
 	"testing"
-
-	"github.com/dfuse-io/logging"
+	"time"
 
 	"github.com/dfuse-io/kvdb/store"
 	"github.com/dfuse-io/kvdb/store/storetest"
+	"github.com/dfuse-io/logging"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +30,12 @@ func TestAll(t *testing.T) {
 
 func newTestFactory(t *testing.T) storetest.DriverFactory {
 	return func(opts ...store.Option) (store.KVStore, *storetest.DriverCapabilities, storetest.DriverCleanupFunc) {
-		kvStore, err := store.New("bigkv://dev.dev/dev?createTable=true", opts...)
+		dsn := "bigkv://dev.dev/dev-{prefix}?createTable=true"
+
+		generator := rand.New(rand.NewSource(time.Now().UnixNano()))
+		dsn = strings.ReplaceAll(dsn, "{prefix}", fmt.Sprintf("%x", generator.Int()))
+
+		kvStore, err := store.New(dsn, opts...)
 		if err != nil {
 			t.Skip("bigtable unreachable, cannot run tests") // FIXME: this just times out
 			return nil, nil, nil

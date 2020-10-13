@@ -208,34 +208,37 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 	return kr
 }
 
-func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int) *store.Iterator {
+func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
 	sit := store.NewIterator(ctx)
 	zlogger.Debug("scanning", zap.Stringer("start", store.Key(start)), zap.Stringer("exclusive_end", store.Key(exclusiveEnd)), zap.Stringer("limit", store.Limit(limit)))
 	go func() {
 		err := s.db.View(func(txn *badger.Txn) error {
-			options := badger.DefaultIteratorOptions
-			if store.Limit(limit).Bounded() && limit < options.PrefetchSize {
-				options.PrefetchSize = limit
-			}
-
-			bit := txn.NewIterator(options)
+			badgerOptions := badgerIteratorOptions(store.Limit(limit), options)
+			bit := txn.NewIterator(badgerOptions)
 			defer bit.Close()
 
+			var err error
 			count := uint64(0)
 			for bit.Seek(start); bit.Valid() && bytes.Compare(bit.Item().Key(), exclusiveEnd) == -1; bit.Next() {
 				count++
-				value, err := bit.Item().ValueCopy(nil)
-				if err != nil {
-					return err
+
+				// We require value only when `PrefetchValues` is true, otherwise, we are performing a key-only iteration and as such,
+				// we should not fetch nor decompress actual value
+				var value []byte
+				if badgerOptions.PrefetchValues {
+					value, err = bit.Item().ValueCopy(nil)
+					if err != nil {
+						return err
+					}
+
+					value, err = s.compressor.Decompress(value)
+					if err != nil {
+						return err
+					}
 				}
 
-				value, err = s.compressor.Decompress(value)
-				if err != nil {
-					return err
-				}
-
-				if !sit.PushItem(store.KV{bit.Item().KeyCopy(nil), value}) {
+				if !sit.PushItem(store.KV{Key: bit.Item().KeyCopy(nil), Value: value}) {
 					break
 				}
 
@@ -256,36 +259,39 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 	return sit
 }
 
-func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Iterator {
+func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
 	kr := store.NewIterator(ctx)
 	zlogger.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
 	go func() {
 		err := s.db.View(func(txn *badger.Txn) error {
-			options := badger.DefaultIteratorOptions
-			if store.Limit(limit).Bounded() && limit < options.PrefetchSize {
-				options.PrefetchSize = limit
-			}
+			badgerOptions := badgerIteratorOptions(store.Limit(limit), options)
+			badgerOptions.Prefix = prefix
 
-			it := txn.NewIterator(options)
+			it := txn.NewIterator(badgerOptions)
 			defer it.Close()
 
+			var err error
 			count := uint64(0)
 			for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
 				count++
 
-				key := it.Item().KeyCopy(nil)
-				value, err := it.Item().ValueCopy(nil)
-				if err != nil {
-					return err
+				// We require value only when `PrefetchValues` is true, otherwise, we are performing a key-only iteration and as such,
+				// we should not fetch nor decompress actual value
+				var value []byte
+				if badgerOptions.PrefetchValues {
+					value, err = it.Item().ValueCopy(nil)
+					if err != nil {
+						return err
+					}
+
+					value, err = s.compressor.Decompress(value)
+					if err != nil {
+						return err
+					}
 				}
 
-				value, err = s.compressor.Decompress(value)
-				if err != nil {
-					return err
-				}
-
-				if !kr.PushItem(store.KV{key, value}) {
+				if !kr.PushItem(store.KV{Key: it.Item().KeyCopy(nil), Value: value}) {
 					break
 				}
 
@@ -306,39 +312,40 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 	return kr
 }
 
-func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *store.Iterator {
+func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
 	kr := store.NewIterator(ctx)
 	zlogger.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
 
 	go func() {
 		err := s.db.View(func(txn *badger.Txn) error {
-			options := badger.DefaultIteratorOptions
-			if store.Limit(limit).Bounded() && limit < options.PrefetchSize {
-				options.PrefetchSize = limit
-			}
-
-			it := txn.NewIterator(options)
+			badgerOptions := badgerIteratorOptions(store.Limit(limit), options)
+			it := txn.NewIterator(badgerOptions)
 			defer it.Close()
 
+			var err error
 			count := uint64(0)
 		terminateLoop:
 			for _, prefix := range prefixes {
 				for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
 					count++
 
-					key := it.Item().KeyCopy(nil)
-					value, err := it.Item().ValueCopy(nil)
-					if err != nil {
-						return err
+					// We require value only when `PrefetchValues` is true, otherwise, we are performing a key-only iteration and as such,
+					// we should not fetch nor decompress actual value
+					var value []byte
+					if badgerOptions.PrefetchValues {
+						value, err = it.Item().ValueCopy(nil)
+						if err != nil {
+							return err
+						}
+
+						value, err = s.compressor.Decompress(value)
+						if err != nil {
+							return err
+						}
 					}
 
-					value, err = s.compressor.Decompress(value)
-					if err != nil {
-						return err
-					}
-
-					if !kr.PushItem(store.KV{Key: key, Value: value}) {
+					if !kr.PushItem(store.KV{Key: it.Item().KeyCopy(nil), Value: value}) {
 						break terminateLoop
 					}
 
@@ -360,4 +367,24 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *
 	}()
 
 	return kr
+}
+
+func badgerIteratorOptions(limit store.Limit, options []store.ReadOption) badger.IteratorOptions {
+	if limit.Unbounded() && len(options) == 0 {
+		return badger.DefaultIteratorOptions
+	}
+
+	readOptions := store.ReadOptions{}
+	for _, opt := range options {
+		opt.Apply(&readOptions)
+	}
+
+	opts := badger.DefaultIteratorOptions
+	if readOptions.KeyOnly {
+		opts.PrefetchValues = false
+	} else if limit.Bounded() && int(limit) < opts.PrefetchSize {
+		opts.PrefetchSize = int(limit)
+	}
+
+	return opts
 }

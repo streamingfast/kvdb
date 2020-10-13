@@ -20,3 +20,21 @@ func (e emptyValueOpt) apply(s KVStore) {
 		f.EnableEmpty()
 	}
 }
+
+type ReadOptions struct {
+	KeyOnly bool
+}
+
+type ReadOption interface {
+	Apply(o *ReadOptions)
+}
+
+func KeyOnly() ReadOption {
+	return keyOnlyReadOption{}
+}
+
+type keyOnlyReadOption struct{}
+
+func (o keyOnlyReadOption) Apply(opts *ReadOptions) {
+	opts.KeyOnly = true
+}

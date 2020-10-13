@@ -218,15 +218,31 @@ func testBasic(t *testing.T, driver store.KVStore, _ *DriverCapabilities, _ kvSt
 	testPrefix(t, driver, []byte("b"), 3, all[1:4])
 	testPrefix(t, driver, []byte("ba"), 10, all[1:4])
 
-	testBatchPrefix(t, "single, unlimited", driver, [][]byte{[]byte("ba")}, store.Unlimited, all[1:4]...)
-	testBatchPrefix(t, "multiple series, unlimited", driver, [][]byte{[]byte("ba"), []byte("c")}, store.Unlimited, all[1], all[2], all[3], all[5])
-	testBatchPrefix(t, "multiple single each, unlimited", driver, [][]byte{[]byte("a"), []byte("c")}, store.Unlimited, all[0], all[5])
-	testBatchPrefix(t, "multiple all empty, unlimited", driver, [][]byte{[]byte("d"), []byte("f")}, store.Unlimited)
+	// Test key-only feature
+	testPrefix(t, driver, []byte("ba"), 10, []store.KV{
+		{Key: all[1].Key, Value: nil},
+		{Key: all[2].Key, Value: nil},
+		{Key: all[3].Key, Value: nil},
+	}, store.KeyOnly())
 
-	testBatchPrefix(t, "single, limited", driver, [][]byte{[]byte("ba")}, 1, all[1])
-	testBatchPrefix(t, "multiple series, limited", driver, [][]byte{[]byte("ba"), []byte("c")}, 2, all[1], all[2])
-	testBatchPrefix(t, "multiple single each, limited", driver, [][]byte{[]byte("a"), []byte("c")}, 1, all[0])
-	testBatchPrefix(t, "multiple all empty, limited", driver, [][]byte{[]byte("d"), []byte("f")}, 10)
+	testBatchPrefix(t, "single, unlimited", driver, [][]byte{[]byte("ba")}, store.Unlimited, all[1:4])
+	testBatchPrefix(t, "multiple series, unlimited", driver, [][]byte{[]byte("ba"), []byte("c")}, store.Unlimited, []store.KV{all[1], all[2], all[3], all[5]})
+	testBatchPrefix(t, "multiple single each, unlimited", driver, [][]byte{[]byte("a"), []byte("c")}, store.Unlimited, []store.KV{all[0], all[5]})
+	testBatchPrefix(t, "multiple all empty, unlimited", driver, [][]byte{[]byte("d"), []byte("f")}, store.Unlimited, nil)
+
+	testBatchPrefix(t, "single, limited", driver, [][]byte{[]byte("ba")}, 1, []store.KV{all[1]})
+	testBatchPrefix(t, "multiple series, limited", driver, [][]byte{[]byte("ba"), []byte("c")}, 2, []store.KV{all[1], all[2]})
+	testBatchPrefix(t, "multiple single each, limited", driver, [][]byte{[]byte("a"), []byte("c")}, 1, []store.KV{all[0]})
+	testBatchPrefix(t, "multiple all empty, limited", driver, [][]byte{[]byte("d"), []byte("f")}, 10, nil)
+
+	// Test key-only feature
+	testBatchPrefix(t, "multiple series, unlimited", driver, [][]byte{[]byte("ba"), []byte("c")}, store.Unlimited,
+		[]store.KV{
+			{Key: all[1].Key, Value: nil},
+			{Key: all[2].Key, Value: nil},
+			{Key: all[3].Key, Value: nil},
+			{Key: all[5].Key, Value: nil},
+		}, store.KeyOnly())
 
 	// testing Scan without limit
 	testScan(t, driver, []byte("a"), []byte("a"), store.Unlimited, nil)
@@ -259,6 +275,13 @@ func testBasic(t *testing.T, driver store.KVStore, _ *DriverCapabilities, _ kvSt
 	testScan(t, driver, []byte(""), testStringsToKey("c"), 3, all[:3])
 	testScan(t, driver, []byte("b"), nil, 1, nil)
 	testScan(t, driver, []byte("b"), testStringsToKey(""), 1, nil)
+
+	// Test key-only feature
+	testScan(t, driver, []byte("b"), []byte("bb"), 4, []store.KV{
+		{Key: all[1].Key, Value: nil},
+		{Key: all[2].Key, Value: nil},
+		{Key: all[3].Key, Value: nil},
+	}, store.KeyOnly())
 
 	// testing Batch Deletion function
 	keys := [][]byte{}
@@ -319,9 +342,9 @@ func testEmtpyValue(t *testing.T, driver store.KVStore, capabilities *DriverCapa
 	}
 }
 
-func testPrefix(t *testing.T, driver store.KVStore, prefix []byte, limit int, exp []store.KV) {
+func testPrefix(t *testing.T, driver store.KVStore, prefix []byte, limit int, exp []store.KV, options ...store.ReadOption) {
 	var got []store.KV
-	itr := driver.Prefix(context.Background(), prefix, limit)
+	itr := driver.Prefix(context.Background(), prefix, limit, options...)
 	for itr.Next() {
 		got = append(got, itr.Item())
 	}
@@ -330,10 +353,10 @@ func testPrefix(t *testing.T, driver store.KVStore, prefix []byte, limit int, ex
 	require.Equal(t, exp, got)
 }
 
-func testBatchPrefix(t *testing.T, name string, driver store.KVStore, prefixes [][]byte, limit int, exp ...store.KV) {
+func testBatchPrefix(t *testing.T, name string, driver store.KVStore, prefixes [][]byte, limit int, exp []store.KV, options ...store.ReadOption) {
 	t.Run(name, func(t *testing.T) {
 		var got []store.KV
-		itr := driver.BatchPrefix(context.Background(), prefixes, limit)
+		itr := driver.BatchPrefix(context.Background(), prefixes, limit, options...)
 		for itr.Next() {
 			got = append(got, itr.Item())
 		}
@@ -349,9 +372,9 @@ func testBatchPrefix(t *testing.T, name string, driver store.KVStore, prefixes [
 	})
 }
 
-func testScan(t *testing.T, driver store.KVStore, start, end []byte, limit int, exp []store.KV) {
+func testScan(t *testing.T, driver store.KVStore, start, end []byte, limit int, exp []store.KV, options ...store.ReadOption) {
 	var got []store.KV
-	itr := driver.Scan(context.Background(), start, end, limit)
+	itr := driver.Scan(context.Background(), start, end, limit, options...)
 	for itr.Next() {
 		got = append(got, itr.Item())
 	}

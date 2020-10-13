@@ -19,6 +19,10 @@ service NetKV {
   rpc BatchPrefix(BatchPrefixRequest) returns (stream KeyValue);
 }
 
+message ReadOptions {
+  bool key_only = 1;
+}
+
 message KeyValue {
   bytes key = 1;
   bytes value = 2;
@@ -41,11 +45,13 @@ message ScanRequest {
   bytes start = 1;
   bytes exclusive_end = 2;
   uint64 limit = 3;
+  ReadOptions options = 4;
 }
 
 message BatchPrefixRequest {
   repeated bytes prefixes = 1;
   uint64 limit_per_prefix = 2;
+  ReadOptions options = 3;
 }
 
 message BatchScanRequest {
@@ -57,6 +63,7 @@ message BatchScanRequest {
 message PrefixRequest {
   bytes prefix = 1;
   uint64 limit = 2;
+  ReadOptions options = 3;
 }
 
 message EmptyResponse {

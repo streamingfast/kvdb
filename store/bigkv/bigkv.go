@@ -196,7 +196,8 @@ func (s *Store) FlushPuts(ctx context.Context) error {
 }
 
 func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
-	row, err := s.table.ReadRow(ctx, string(s.withPrefix(key)), latestCellFilter)
+	btOptions := bigtableReadOptions(store.Limit(store.Unlimited), nil)
+	row, err := s.table.ReadRow(ctx, string(s.withPrefix(key)), btOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -215,13 +216,13 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 	}
 
 	zlogger.Debug("batch get", zap.Int("key_count", len(btKeys)))
-	opts := []bigtable.ReadOption{latestCellFilter}
 
+	btOptions := bigtableReadOptions(store.Limit(store.Unlimited), nil)
 	kr := store.NewIterator(ctx)
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.RowList(btKeys), func(row bigtable.Row) bool {
 			return kr.PushItem(store.KV{Key: s.withoutPrefix([]byte(row.Key())), Value: row["kv"][0].Value})
-		}, opts...)
+		}, btOptions...)
 
 		if err != nil {
 			kr.PushError(err)
@@ -271,7 +272,7 @@ func (s *Store) BatchDelete(ctx context.Context, deletionKeys [][]byte) (err err
 	return nil
 }
 
-func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int) *store.Iterator {
+func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
 	startKey := s.withPrefix(start)
 	endKey := s.withPrefix(exclusiveEnd)
@@ -285,16 +286,14 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 	}
 
 	zlogger.Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
-	opts := []bigtable.ReadOption{latestCellFilter}
-	if store.Limit(limit).Bounded() {
-		opts = append(opts, bigtable.LimitRows(int64(limit)))
-	}
 
+	btOptions := bigtableReadOptions(store.Limit(limit), options)
 	rowRange := bigtable.NewRange(string(startKey), string(endKey))
+
 	go func() {
 		err := s.table.ReadRows(ctx, rowRange, func(row bigtable.Row) bool {
 			return sit.PushItem(store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
-		}, opts...)
+		}, btOptions...)
 
 		if err != nil {
 			sit.PushError(err)
@@ -306,24 +305,18 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int)
 	return sit
 }
 
-var latestCellOnly = bigtable.LatestNFilter(1)
-var latestCellFilter = bigtable.RowFilter(latestCellOnly)
-
-func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Iterator {
+func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
 	sit := store.NewIterator(ctx)
 	zlogger.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
-	opts := []bigtable.ReadOption{latestCellFilter}
-	if store.Limit(limit).Bounded() {
-		opts = append(opts, bigtable.LimitRows(int64(limit)))
-	}
 
+	btOptions := bigtableReadOptions(store.Limit(limit), options)
 	prefix = s.withPrefix(prefix)
 
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.PrefixRange(string(prefix)), func(row bigtable.Row) bool {
 			return sit.PushItem(store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
-		}, opts...)
+		}, btOptions...)
 
 		if err != nil {
 			sit.PushError(err)
@@ -336,15 +329,12 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int) *store.Ite
 	return sit
 }
 
-func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *store.Iterator {
+func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
 	sit := store.NewIterator(ctx)
 	zlogger.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
-	opts := []bigtable.ReadOption{latestCellFilter}
-	if store.Limit(limit).Bounded() {
-		opts = append(opts, bigtable.LimitRows(int64(limit)))
-	}
 
+	btOptions := bigtableReadOptions(store.Limit(limit), options)
 	rowRanges := make([]bigtable.RowRange, len(prefixes))
 	for i, prefix := range prefixes {
 		rowRanges[i] = bigtable.PrefixRange(string(s.withPrefix(prefix)))
@@ -352,8 +342,8 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int) *
 
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.RowRangeList(rowRanges), func(row bigtable.Row) bool {
-			return sit.PushItem(store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
-		}, opts...)
+			return sit.PushItem(store.KV{Key: s.withoutPrefix([]byte(row.Key())), Value: row["kv"][0].Value})
+		}, btOptions...)
 
 		if err != nil {
 			sit.PushError(err)
@@ -381,6 +371,40 @@ func (s *Store) withoutPrefix(key []byte) []byte {
 		return key
 	}
 	return key[len(s.keyPrefix):]
+}
+
+var keyOnlyFilter = bigtable.StripValueFilter()
+var latestCellFilter = bigtable.LatestNFilter(1)
+
+func bigtableReadOptions(limit store.Limit, options []store.ReadOption) []bigtable.ReadOption {
+	readOptions := store.ReadOptions{}
+	for _, opt := range options {
+		opt.Apply(&readOptions)
+	}
+
+	// We assume here that at most, we will get 2 filters, also, we assume that if key only is specified,
+	// it should go first, theory here is that stripping value first (if required) puts less performance hit
+	// on BigTable for subsequent filters, so order matters.
+	var filters = make([]bigtable.Filter, 0, 2)
+	if readOptions.KeyOnly {
+		filters = append(filters, keyOnlyFilter)
+	}
+
+	filters = append(filters, latestCellFilter)
+
+	var filterOption bigtable.ReadOption
+	if len(filters) == 1 {
+		filterOption = bigtable.RowFilter(filters[0])
+	} else {
+		filterOption = bigtable.RowFilter(bigtable.ChainFilters(filters...))
+	}
+
+	opts := []bigtable.ReadOption{filterOption}
+	if store.Limit(limit).Bounded() {
+		opts = append(opts, bigtable.LimitRows(int64(limit)))
+	}
+
+	return opts
 }
 
 func optionalTestEnv(project, instance string) {

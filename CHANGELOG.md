@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [`tikv`] Fixed `store.WithEmptyValue` support when using compression that was not compressing the "formatted" value that should have been sent to TiKV.
 
 ### Changed
+- [`core`] Now supporting key-only iteration for `BatchPrefix`, `Prefix` and `Scan` calls.
+- [`core`] **BREAKING** Added `options ...store.ReadOption` options to `store.KVStore#BatchPrefix`.
+- [`core`] **BREAKING** Added `options ...store.ReadOption` options to `store.KVStore#Prefix`.
+- [`core`] **BREAKING** Added `options ...store.ReadOption` options to `store.KVStore#Scan`.
+- [`badger`] Improved implementation of `Prefix` by reducing number of internal shards Badger is going to check when doing the prefix search.
 - [`tikv`] Improved implementation of `Prefix` and `BatchPrefix` by using TiKV client raw max scan limit value to iterate.
 - [`tikv`] Added ability to customize TiKV client raw max scan limit using `tikv_raw_max_scan_limit=<value>` query parameter in dsn (accepts positive numbers).
 - [`tikv`] Added ability to customize TiKV client raw max batch put size using `tikv_raw_max_batch_put_size=<value>` query parameter in dsn (accepts positive numbers).

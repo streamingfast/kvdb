@@ -128,7 +128,7 @@ func wrapNotFoundError(err error) error {
 }
 
 func (s *Server) Scan(req *pbnetkv.ScanRequest, stream pbnetkv.NetKV_ScanServer) error {
-	it := s.store.Scan(stream.Context(), req.Start, req.ExclusiveEnd, int(req.Limit))
+	it := s.store.Scan(stream.Context(), req.Start, req.ExclusiveEnd, int(req.Limit), storeReadOptions(req.Options)...)
 	for it.Next() {
 		item := it.Item()
 		if err := stream.Send(&pbnetkv.KeyValue{Key: item.Key, Value: item.Value}); err != nil {
@@ -146,7 +146,7 @@ func (s *Server) BatchScan(req *pbnetkv.BatchScanRequest, stream pbnetkv.NetKV_B
 }
 
 func (s *Server) Prefix(req *pbnetkv.PrefixRequest, stream pbnetkv.NetKV_PrefixServer) error {
-	it := s.store.Prefix(stream.Context(), req.Prefix, int(req.Limit))
+	it := s.store.Prefix(stream.Context(), req.Prefix, int(req.Limit), storeReadOptions(req.Options)...)
 	for it.Next() {
 		item := it.Item()
 		if err := stream.Send(&pbnetkv.KeyValue{Key: item.Key, Value: item.Value}); err != nil {
@@ -160,7 +160,7 @@ func (s *Server) Prefix(req *pbnetkv.PrefixRequest, stream pbnetkv.NetKV_PrefixS
 }
 
 func (s *Server) BatchPrefix(req *pbnetkv.BatchPrefixRequest, stream pbnetkv.NetKV_BatchPrefixServer) error {
-	it := s.store.BatchPrefix(stream.Context(), req.Prefixes, int(req.LimitPerPrefix))
+	it := s.store.BatchPrefix(stream.Context(), req.Prefixes, int(req.LimitPerPrefix), storeReadOptions(req.Options)...)
 	for it.Next() {
 		item := it.Item()
 		if err := stream.Send(&pbnetkv.KeyValue{Key: item.Key, Value: item.Value}); err != nil {
@@ -170,5 +170,14 @@ func (s *Server) BatchPrefix(req *pbnetkv.BatchPrefixRequest, stream pbnetkv.Net
 	if it.Err() != nil {
 		return it.Err()
 	}
+	return nil
+}
+
+func storeReadOptions(options *pbnetkv.ReadOptions) (out []store.ReadOption) {
+	if options != nil && options.KeyOnly {
+		return []store.ReadOption{store.KeyOnly()}
+	}
+
+	// There is not options for now, so we can always return nothing from that point
 	return nil
 }
