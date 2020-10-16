@@ -27,6 +27,8 @@ type Store struct {
 	keyPrefix []byte
 	tableName string
 
+	columnName string
+
 	maxBytesBeforeFlush   uint64
 	maxRowsBeforeFlush    uint64
 	maxSecondsBeforeFlush uint64
@@ -117,6 +119,11 @@ func NewStore(dsnString string) (store.KVStore, error) {
 		s.keyPrefix = keyPrefixBytes
 	}
 
+	s.columnName = "kv"
+	if colName := dsn.Query().Get("colName"); colName != "" {
+		s.columnName = colName
+	}
+
 	createTable := dsn.Query().Get("createTable") == "true"
 
 	tableName := strings.Trim(dsn.Path, "/")
@@ -132,12 +139,12 @@ func NewStore(dsnString string) (store.KVStore, error) {
 			return nil, fmt.Errorf("failed creating table %q: %w", tableName, err)
 		}
 
-		if err := adminClient.CreateColumnFamily(ctx, tableName, "kv"); err != nil && !isAlreadyExistsError(err) {
-			return nil, fmt.Errorf("failed creating 'kv' family for table %q: %w", tableName, err)
+		if err := adminClient.CreateColumnFamily(ctx, tableName, s.columnName); err != nil && !isAlreadyExistsError(err) {
+			return nil, fmt.Errorf("failed creating %q family for table %q: %w", s.columnName, tableName, err)
 		}
 
-		if err := adminClient.SetGCPolicy(ctx, tableName, "kv", bigtable.MaxVersionsPolicy(1)); err != nil {
-			return nil, fmt.Errorf("failed applying gc policy to 'kv' family for table %q: %w", tableName, err)
+		if err := adminClient.SetGCPolicy(ctx, tableName, s.columnName, bigtable.MaxVersionsPolicy(1)); err != nil {
+			return nil, fmt.Errorf("failed applying gc policy to %q family for table %q: %w", s.columnName, tableName, err)
 		}
 	}
 
@@ -181,7 +188,7 @@ func (s *Store) FlushPuts(ctx context.Context) error {
 	for idx, kv := range kvs {
 		keys[idx] = string(kv.Key)
 		mut := bigtable.NewMutation()
-		mut.Set("kv", "v", bigtable.Now(), kv.Value)
+		mut.Set(s.columnName, "v", bigtable.Now(), kv.Value)
 		values[idx] = mut
 	}
 	errs, err := s.table.ApplyBulk(ctx, keys, values)
@@ -205,7 +212,7 @@ func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
 		return nil, store.ErrNotFound
 	}
 
-	return row["kv"][0].Value, nil
+	return row[s.columnName][0].Value, nil
 }
 
 func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
@@ -221,7 +228,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 	kr := store.NewIterator(ctx)
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.RowList(btKeys), func(row bigtable.Row) bool {
-			return kr.PushItem(store.KV{Key: s.withoutPrefix([]byte(row.Key())), Value: row["kv"][0].Value})
+			return kr.PushItem(store.KV{Key: s.withoutPrefix([]byte(row.Key())), Value: row[s.columnName][0].Value})
 		}, btOptions...)
 
 		if err != nil {
@@ -292,7 +299,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int,
 
 	go func() {
 		err := s.table.ReadRows(ctx, rowRange, func(row bigtable.Row) bool {
-			return sit.PushItem(store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
+			return sit.PushItem(store.KV{s.withoutPrefix([]byte(row.Key())), row[s.columnName][0].Value})
 		}, btOptions...)
 
 		if err != nil {
@@ -315,7 +322,7 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ..
 
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.PrefixRange(string(prefix)), func(row bigtable.Row) bool {
-			return sit.PushItem(store.KV{s.withoutPrefix([]byte(row.Key())), row["kv"][0].Value})
+			return sit.PushItem(store.KV{s.withoutPrefix([]byte(row.Key())), row[s.columnName][0].Value})
 		}, btOptions...)
 
 		if err != nil {
@@ -342,7 +349,7 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int, o
 
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.RowRangeList(rowRanges), func(row bigtable.Row) bool {
-			return sit.PushItem(store.KV{Key: s.withoutPrefix([]byte(row.Key())), Value: row["kv"][0].Value})
+			return sit.PushItem(store.KV{Key: s.withoutPrefix([]byte(row.Key())), Value: row[s.columnName][0].Value})
 		}, btOptions...)
 
 		if err != nil {
