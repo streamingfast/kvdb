@@ -152,11 +152,6 @@ func testPurgeable(t *testing.T, driver store.KVStore, _ *DriverCapabilities, op
 	for _, test := range tests {
 		v, err := driver.Get(context.Background(), test.key)
 		if test.height < (purgeBelowHeight - options.purgeableTTLInBlocks) {
-			// FIXME: On TiKV implementation, this does not work as expected returning some keys that should be "deleted",
-			//        tried adding a 15s wait between the `BatchDelete` above and the actual retrieval of the key, but this didn't
-			//        fix it.
-			//
-			//        Maybe someone with fresh eyes could take a second look of as why this behavior is happening.
 			require.Error(t, err, "Expecting a store.ErrNotFound but got value for key %q (hex %x), content was %q (hex %x)", string(test.key), test.key, string(v), v)
 			assert.Equal(t, err, store.ErrNotFound)
 		} else {
@@ -295,11 +290,6 @@ func testBasic(t *testing.T, driver store.KVStore, _ *DriverCapabilities, _ kvSt
 	// testing GET with a flush
 	for _, kv := range all {
 		value, err := driver.Get(context.Background(), kv.Key)
-		// FIXME: On TiKV implementation, this does not work as expected returning some keys that should be "deleted",
-		//        tried adding a 15s wait between the `BatchDelete` above and the actual retrieval of the key, but this didn't
-		//        fix it.
-		//
-		//        Maybe someone with fresh eyes could take a second look of as why this behavior is happening.
 		require.Error(t, err, "Expecting a store.ErrNotFound but got value for key %q (hex %x), content was %q (hex %x)", string(kv.Key), kv.Key, string(value), value)
 		assert.Equal(t, err, store.ErrNotFound)
 	}

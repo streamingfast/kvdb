@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
+- [`tikv`] Fixed `store.BatchDelete` not deleting keys correctly, it was not prefixing the key with the table.
 - [`badger`] Fixed error propagation when dealing with `WriteBatch` transaction, only `ErrTxnTooBig` was checked, now any error is propagated.
 - [`tikv`] Fixed `store.Scan` not returning more than 10561 rows.
 - [`tikv`] Fixed invalid `store.ErrNotFound` being thrown when `store.WithEmptyValue` is used and the value stored is empty.

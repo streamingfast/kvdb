@@ -258,7 +258,12 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 }
 
 func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) error {
-	return s.client.BatchDelete(ctx, keys)
+	prefixedKeys := make([][]byte, len(keys))
+	for i, key := range keys {
+		prefixedKeys[i] = s.withPrefix(key)
+	}
+
+	return s.client.BatchDelete(ctx, prefixedKeys)
 }
 
 func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) *store.Iterator {

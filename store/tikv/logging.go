@@ -15,9 +15,12 @@
 package tikv
 
 import (
+	"fmt"
 	"os"
 
+	logrusToZap "github.com/Sytten/logrus-zap-hook"
 	"github.com/dfuse-io/logging"
+	"github.com/sirupsen/logrus"
 	"github.com/tikv/client-go/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -28,6 +31,13 @@ var zlog *zap.Logger
 
 func init() {
 	logging.Register("github.com/dfuse-io/kvdb/store/tikv", &zlog)
+
+	hook, err := logrusToZap.NewZapHook(zlog)
+	if err != nil {
+		panic(fmt.Errorf("at time of writing, the library was not emitting any error even if in the interface, it seems it does now: %w", err))
+	}
+
+	logrus.StandardLogger().AddHook(hook)
 }
 
 type tikvConfigRaw config.Raw

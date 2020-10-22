@@ -3,6 +3,7 @@ module github.com/dfuse-io/kvdb
 require (
 	cloud.google.com/go/bigtable v1.2.0
 	github.com/OneOfOne/xxhash v1.2.5 // indirect
+	github.com/Sytten/logrus-zap-hook v0.1.0
 	github.com/dfuse-io/logging v0.0.0-20200908182738-02ce9b245eeb
 	github.com/dgraph-io/badger/v2 v2.0.3
 	github.com/edsrzf/mmap-go v0.0.0-20160512033002-935e0e8a636c // indirect
@@ -18,7 +19,7 @@ require (
 	github.com/pingcap/kvproto v0.0.0-20200403035933-b4034bceab26 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.1.0 // indirect
-	github.com/sirupsen/logrus v1.4.2 // indirect
+	github.com/sirupsen/logrus v1.4.2
 	github.com/stretchr/testify v1.4.0
 	github.com/tikv/client-go v0.0.0-20200824032810-95774393107b
 	go.opencensus.io v0.22.2
