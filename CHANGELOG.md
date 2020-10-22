@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
+- [`badger`] Fixed error propagation when dealing with `WriteBatch` transaction, only `ErrTxnTooBig` was checked, now any error is propagated.
 - [`tikv`] Fixed `store.Scan` not returning more than 10561 rows.
 - [`tikv`] Fixed invalid `store.ErrNotFound` being thrown when `store.WithEmptyValue` is used and the value stored is empty.
 - [`tikv`] Fixed `store.WithEmptyValue` support when using compression that was not compressing the "formatted" value that should have been sent to TiKV.

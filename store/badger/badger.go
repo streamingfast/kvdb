@@ -91,8 +91,12 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 		s.writeBatch = s.db.NewWriteBatch()
 		err := s.writeBatch.SetEntry(badger.NewEntry(key, value))
 		if err != nil {
-			return fmt.Errorf("after txn too big: %w", err)
+			return fmt.Errorf("set entry (after flush): %w", err)
 		}
+	}
+
+	if err != nil {
+		return fmt.Errorf("set entry: %w", err)
 	}
 
 	return nil
@@ -143,7 +147,6 @@ func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
 
 func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) (err error) {
 	zlogger := logging.Logger(ctx, zlog)
-
 	zlogger.Debug("batch deletion", zap.Int("key_count", len(keys)))
 
 	deletionBatch := s.db.NewWriteBatch()
@@ -155,17 +158,19 @@ func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) (err error) {
 				return err
 			}
 
+			// We start a new batch and add our key, the err is re-assigned, going to be check after the if
 			deletionBatch = s.db.NewWriteBatch()
-			err := deletionBatch.Delete(key)
+			err = deletionBatch.Delete(key)
 			if err != nil {
-				return err
+				return fmt.Errorf("delete (after flush): %w", err)
 			}
+		}
+
+		if err != nil {
+			return fmt.Errorf("delete: %w", err)
 		}
 	}
 
-	if deletionBatch == nil {
-		return nil
-	}
 	return deletionBatch.Flush()
 }
 
