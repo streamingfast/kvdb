@@ -15,10 +15,10 @@
 package tikv
 
 import (
-	"fmt"
+	"io/ioutil"
 	"os"
+	"runtime"
 
-	logrusToZap "github.com/Sytten/logrus-zap-hook"
 	"github.com/dfuse-io/logging"
 	"github.com/sirupsen/logrus"
 	"github.com/tikv/client-go/config"
@@ -30,14 +30,23 @@ var traceEnabled = os.Getenv("TRACE") == "true"
 var zlog *zap.Logger
 
 func init() {
-	logging.Register("github.com/dfuse-io/kvdb/store/tikv", &zlog)
+	hook := &logrusHook{}
 
-	hook, err := logrusToZap.NewZapHook(zlog)
-	if err != nil {
-		panic(fmt.Errorf("at time of writing, the library was not emitting any error even if in the interface, it seems it does now: %w", err))
-	}
+	logging.Register("github.com/dfuse-io/kvdb/store/tikv", &zlog, logging.RegisterOnUpdate(func(newLogger *zap.Logger) {
+		hook.logger = newLogger.Named("tikv-client")
+	}))
 
+	// The code here is used to re-configured standard logger on `logrus` library which is used
+	// by tikv-client to log stuff.
+	//
+	// Ideally, we would like to configure it "per tikv store" instance, but this is not possible
+	// since the library uses only the standard global logger. Created an issue to track so if it
+	// change at some point, we will revisit this.
+	//
+	// See https://github.com/tikv/client-go/issues/59
 	logrus.StandardLogger().AddHook(hook)
+	logrus.StandardLogger().SetOutput(ioutil.Discard)
+	logrus.StandardLogger().SetReportCaller(true)
 }
 
 type tikvConfigRaw config.Raw
@@ -49,4 +58,56 @@ func (c tikvConfigRaw) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	enc.AddInt("max_batch_put_size", v.MaxBatchPutSize)
 	enc.AddInt("batch_pair_count", v.BatchPairCount)
 	return nil
+}
+
+type logrusHook struct {
+	logger *zap.Logger
+}
+
+func (h *logrusHook) Fire(entry *logrus.Entry) error {
+	if h.logger == nil {
+		return nil
+	}
+
+	fields := make([]zap.Field, len(entry.Data))
+
+	i := 0
+	for key, value := range entry.Data {
+		if key == logrus.ErrorKey {
+			fields[i] = zap.Error(value.(error))
+		} else {
+			fields[i] = zap.Any(key, value)
+		}
+		i++
+	}
+
+	switch entry.Level {
+	case logrus.PanicLevel:
+		h.write(zapcore.PanicLevel, entry.Message, fields, entry.Caller)
+	case logrus.FatalLevel:
+		h.write(zapcore.FatalLevel, entry.Message, fields, entry.Caller)
+	case logrus.ErrorLevel:
+		h.write(zapcore.ErrorLevel, entry.Message, fields, entry.Caller)
+	case logrus.WarnLevel:
+		h.write(zapcore.WarnLevel, entry.Message, fields, entry.Caller)
+	case logrus.InfoLevel:
+		h.write(zapcore.InfoLevel, entry.Message, fields, entry.Caller)
+	case logrus.DebugLevel, logrus.TraceLevel:
+		h.write(zapcore.DebugLevel, entry.Message, fields, entry.Caller)
+	}
+
+	return nil
+}
+
+func (h *logrusHook) write(lvl zapcore.Level, msg string, fields []zap.Field, caller *runtime.Frame) {
+	if ce := h.logger.Check(lvl, msg); ce != nil {
+		if caller != nil {
+			ce.Caller = zapcore.NewEntryCaller(caller.PC, caller.File, caller.Line, caller.PC != 0)
+		}
+		ce.Write(fields...)
+	}
+}
+
+func (h *logrusHook) Levels() []logrus.Level {
+	return logrus.AllLevels
 }
