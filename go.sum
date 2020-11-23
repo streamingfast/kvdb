@@ -77,6 +77,8 @@ github.com/dfuse-io/logging v0.0.0-20200908182738-02ce9b245eeb h1:Aos+vL/3wnyPzx
 github.com/dfuse-io/logging v0.0.0-20200908182738-02ce9b245eeb/go.mod h1:80YyilHcgoqrnoIeeJKgcsOw6Y/0/bQzDO/XzNIrIdM=
 github.com/dfuse-io/logging v0.0.0-20201023175426-d0173f8508dc h1:w3SL2sM5CM8F4bxS7Ny8WKFavUujbBEL/eo8bzh2tV4=
 github.com/dfuse-io/logging v0.0.0-20201023175426-d0173f8508dc/go.mod h1:V+ED4kT/t/lKtH99JQmKIb0v9WL3VaYkJ36CfHlVECI=
+github.com/dfuse-io/logging v0.0.0-20201120222745-9988f63324bc h1:N+gnN7RkfZSb1bvP39/BeUCdX9vDAyDpeepFybyF4TI=
+github.com/dfuse-io/logging v0.0.0-20201120222745-9988f63324bc/go.mod h1:n0Np6Dr/Yv56l8Rq2wgDZpv4vfjT8qlvY34pb3dcI0k=
 github.com/dgraph-io/badger/v2 v2.0.3 h1:inzdf6VF/NZ+tJ8RwwYMjJMvsOALTHYdozn0qSl6XJI=
 github.com/dgraph-io/badger/v2 v2.0.3/go.mod h1:3KY8+bsP8wI0OEnQJAKpd4wIJW/Mm32yw2j/9FUVnIM=
 github.com/dgraph-io/ristretto v0.0.2-0.20200115201040-8f368f2f2ab3 h1:MQLRM35Pp0yAyBYksjbj1nZI/w6eyRY/mWoM1sFf4kU=
@@ -282,6 +284,7 @@ github.com/stretchr/testify v1.4.0 h1:2E4SXV/wtOkTonXsotYi4li6zVWxYlZuYNCXe9XRJy
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
 github.com/teris-io/shortid v0.0.0-20171029131806-771a37caa5cf h1:Z2X3Os7oRzpdJ75iPqWZc0HeJWFYNCvKsfpQwFpRNTA=
 github.com/teris-io/shortid v0.0.0-20171029131806-771a37caa5cf/go.mod h1:M8agBzgqHIhgj7wEn9/0hJUZcrvt9VY+Ln+S1I5Mha0=
+github.com/test-go/testify v1.1.4/go.mod h1:rH7cfJo/47vWGdi4GPj16x3/t1xGOj2YxzmNQzk2ghU=
 github.com/tikv/client-go v0.0.0-20200110101306-a3ebdb020c83 h1:IfRSAmMavarPgSj0Rr4iUVJ+w6sxF1a6/cTUXZl5yZY=
 github.com/tikv/client-go v0.0.0-20200110101306-a3ebdb020c83/go.mod h1:K0NcdVNrXDq92YPLytsrAwRMyuXi7GZCO6dXNH7OzQc=
 github.com/tikv/client-go v0.0.0-20200824032810-95774393107b h1:VOG2GkM7RpRrT0St7HIIwCWrc3mVdf+DjcT8r2ucusI=

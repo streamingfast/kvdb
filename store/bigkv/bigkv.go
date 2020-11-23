@@ -178,6 +178,10 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 }
 
 func (s *Store) FlushPuts(ctx context.Context) error {
+	if traceEnabled {
+		logging.Logger(ctx, zlog).Debug("flushing puts")
+	}
+
 	kvs := s.batchPut.GetBatch()
 	if len(kvs) == 0 {
 		return nil
@@ -216,13 +220,14 @@ func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
 }
 
 func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
-	zlogger := logging.Logger(ctx, zlog)
+	if traceEnabled {
+		logging.Logger(ctx, zlog).Debug("batch get", zap.Int("key_count", len(keys)))
+	}
+
 	btKeys := make([]string, len(keys))
 	for i, key := range keys {
 		btKeys[i] = string(key)
 	}
-
-	zlogger.Debug("batch get", zap.Int("key_count", len(btKeys)))
 
 	btOptions := bigtableReadOptions(store.Limit(store.Unlimited), nil)
 	kr := store.NewIterator(ctx)
@@ -243,9 +248,14 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 }
 
 func (s *Store) BatchDelete(ctx context.Context, deletionKeys [][]byte) (err error) {
+	if traceEnabled {
+		logging.Logger(ctx, zlog).Debug("batch delete", zap.Int("key_count", len(deletionKeys)))
+	}
+
 	if len(deletionKeys) == 0 {
 		return nil
 	}
+
 	batch := store.NewBatchOp(int(s.maxBytesBeforeFlush), int(s.maxRowsBeforeFlush), time.Duration(s.maxSecondsBeforeFlush)*time.Second)
 	keys := make([]string, len(deletionKeys))
 	values := make([]*bigtable.Mutation, len(deletionKeys))
@@ -280,19 +290,19 @@ func (s *Store) BatchDelete(ctx context.Context, deletionKeys [][]byte) (err err
 }
 
 func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) *store.Iterator {
-	zlogger := logging.Logger(ctx, zlog)
 	startKey := s.withPrefix(start)
 	endKey := s.withPrefix(exclusiveEnd)
 
-	sit := store.NewIterator(ctx)
+	if traceEnabled {
+		logging.Logger(ctx, zlog).Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
+	}
 
+	sit := store.NewIterator(ctx)
 	if len(endKey) == 0 {
 		// Act like the other backends
 		sit.PushFinished()
 		return sit
 	}
-
-	zlogger.Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
 
 	btOptions := bigtableReadOptions(store.Limit(limit), options)
 	rowRange := bigtable.NewRange(string(startKey), string(endKey))
@@ -313,10 +323,11 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int,
 }
 
 func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ...store.ReadOption) *store.Iterator {
-	zlogger := logging.Logger(ctx, zlog)
-	sit := store.NewIterator(ctx)
-	zlogger.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
+	if traceEnabled {
+		logging.Logger(ctx, zlog).Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
+	}
 
+	sit := store.NewIterator(ctx)
 	btOptions := bigtableReadOptions(store.Limit(limit), options)
 	prefix = s.withPrefix(prefix)
 
@@ -337,10 +348,11 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ..
 }
 
 func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int, options ...store.ReadOption) *store.Iterator {
-	zlogger := logging.Logger(ctx, zlog)
-	sit := store.NewIterator(ctx)
-	zlogger.Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
+	if traceEnabled {
+		logging.Logger(ctx, zlog).Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
+	}
 
+	sit := store.NewIterator(ctx)
 	btOptions := bigtableReadOptions(store.Limit(limit), options)
 	rowRanges := make([]bigtable.RowRange, len(prefixes))
 	for i, prefix := range prefixes {

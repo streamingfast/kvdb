@@ -16,7 +16,6 @@ package tikv
 
 import (
 	"io/ioutil"
-	"os"
 	"runtime"
 
 	"github.com/dfuse-io/logging"
@@ -26,7 +25,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-var traceEnabled = os.Getenv("TRACE") == "true"
+var traceEnabled = logging.IsTraceEnabled("kvdb", "github.com/dfuse-io/kvdb/tikv")
 var zlog *zap.Logger
 
 func init() {
