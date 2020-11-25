@@ -33,6 +33,7 @@ func init() {
 
 	logging.Register("github.com/dfuse-io/kvdb/store/tikv", &zlog, logging.RegisterOnUpdate(func(newLogger *zap.Logger) {
 		hook.logger = newLogger.Named("tikv-client")
+		reconfigureLogrusLevel(hook.logger)
 	}))
 
 	// The code here is used to re-configured standard logger on `logrus` library which is used
@@ -109,4 +110,40 @@ func (h *logrusHook) write(lvl zapcore.Level, msg string, fields []zap.Field, ca
 
 func (h *logrusHook) Levels() []logrus.Level {
 	return logrus.AllLevels
+}
+
+func reconfigureLogrusLevel(logger *zap.Logger) {
+	level := inferZapLoggerLevel(logger)
+
+	switch level {
+	case zap.DebugLevel:
+		logrus.SetLevel(logrus.DebugLevel)
+	case zap.InfoLevel:
+		logrus.SetLevel(logrus.InfoLevel)
+	case zap.WarnLevel:
+		logrus.SetLevel(logrus.WarnLevel)
+	case zap.ErrorLevel:
+		logrus.SetLevel(logrus.ErrorLevel)
+	}
+}
+
+func inferZapLoggerLevel(logger *zap.Logger) zapcore.Level {
+	core := logger.Core()
+	if core.Enabled(zap.DebugLevel) {
+		return zap.DebugLevel
+	}
+
+	if core.Enabled(zap.InfoLevel) {
+		return zap.InfoLevel
+	}
+
+	if core.Enabled(zap.WarnLevel) {
+		return zap.WarnLevel
+	}
+
+	if core.Enabled(zap.ErrorLevel) {
+		return zap.ErrorLevel
+	}
+
+	return zap.PanicLevel
 }

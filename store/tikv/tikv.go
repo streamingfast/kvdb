@@ -164,6 +164,10 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 }
 
 func (s *Store) FlushPuts(ctx context.Context) error {
+	if traceEnabled {
+		logging.Debug(ctx, zlog, "flushing batch", zap.Object("batch", s.batchPut))
+	}
+
 	kvs := s.batchPut.GetBatch()
 	if len(kvs) == 0 {
 		return nil
@@ -175,10 +179,6 @@ func (s *Store) FlushPuts(ctx context.Context) error {
 		// The key & value must not be prefixed/formatted here as they already been processed when added to the batch directly
 		keys[idx] = kv.Key
 		values[idx] = kv.Value
-	}
-
-	if traceEnabled {
-		zlog.Debug("flush a batch through client", zap.Int("op_count", len(kvs)), zap.Int("size", s.batchPut.Size()))
 	}
 
 	err := s.client.BatchPut(ctx, keys, values)
@@ -219,8 +219,9 @@ func (s *Store) Get(ctx context.Context, key []byte) ([]byte, error) {
 }
 
 func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
-	zlogger := logging.Logger(ctx, zlog)
-	zlogger.Debug("batch get", zap.Int("key_count", len(keys)))
+	if traceEnabled {
+		logging.Debug(ctx, zlog, "batch get", zap.Int("key_count", len(keys)))
+	}
 
 	prefixedKeys := make([][]byte, len(keys))
 	for i, key := range keys {
@@ -268,10 +269,12 @@ func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) error {
 
 func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
-	zlogger.Debug("range scan",
-		zap.Stringer("start_key", store.Key(start)),
-		zap.Stringer("exclusive_end_key", store.Key(exclusiveEnd)),
-	)
+	if traceEnabled {
+		zlogger.Debug("range scan",
+			zap.Stringer("start_key", store.Key(start)),
+			zap.Stringer("exclusive_end_key", store.Key(exclusiveEnd)),
+		)
+	}
 
 	return s.scanIterator(ctx, zlogger, s.withPrefix(start), s.withPrefix(exclusiveEnd), store.Limit(limit), options)
 }
@@ -294,7 +297,9 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ..
 
 func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
-	zlogger.Debug("batch prefix", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
+	if traceEnabled {
+		zlogger.Debug("batch prefix", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
+	}
 
 	// TODO: The native tikv client does not support batch scanning of multiple ranges of
 	//       keys. While it's possible starting multiple goroutines that scans multiple
@@ -383,12 +388,14 @@ func (s *Store) scanIterator(ctx context.Context, zlogger *zap.Logger, startKey,
 func (s *Store) scan(ctx context.Context, zlogger *zap.Logger, startKey, exclusiveEnd []byte, limit store.Limit, options []store.ReadOption, onKV func(kv store.KV) bool) (err error) {
 	scanOption := tikvScanOption(options)
 
-	zlogger.Debug("scanning",
-		zap.Stringer("start_key", store.Key(startKey)),
-		zap.Stringer("exclusive_end_key", store.Key(exclusiveEnd)),
-		zap.Bool("key_only", scanOption.KeyOnly),
-		zap.Stringer("limit", store.Limit(limit)),
-	)
+	if traceEnabled {
+		zlogger.Debug("scanning",
+			zap.Stringer("start_key", store.Key(startKey)),
+			zap.Stringer("exclusive_end_key", store.Key(exclusiveEnd)),
+			zap.Bool("key_only", scanOption.KeyOnly),
+			zap.Stringer("limit", store.Limit(limit)),
+		)
+	}
 
 	count := uint64(0)
 

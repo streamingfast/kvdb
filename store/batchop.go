@@ -1,6 +1,8 @@
 package store
 
 import (
+	"fmt"
+	"strconv"
 	"time"
 
 	"go.uber.org/zap/zapcore"
@@ -15,6 +17,8 @@ type BatchOp struct {
 	size      int
 	puts      int
 	lastReset time.Time
+
+	largestEntry *KV
 }
 
 func NewBatchOp(sizeThreshold int, optsThreshold int, timeThreshold time.Duration) *BatchOp {
@@ -28,9 +32,15 @@ func NewBatchOp(sizeThreshold int, optsThreshold int, timeThreshold time.Duratio
 }
 
 func (b *BatchOp) Op(key, value []byte) {
-	b.size += len(key) + len(value)
+	entry := &KV{key, value}
+
+	b.size += entry.Size()
 	b.puts++
-	b.batch = append(b.batch, &KV{key, value})
+	b.batch = append(b.batch, entry)
+
+	if b.largestEntry.Size() < entry.Size() {
+		b.largestEntry = entry
+	}
 }
 
 func (b *BatchOp) ShouldFlush() bool {
@@ -79,11 +89,38 @@ func (b *BatchOp) Reset() {
 	b.size = 0
 	b.puts = 0
 	b.lastReset = time.Now()
+	b.largestEntry = nil
 }
 
 func (b *BatchOp) MarshalLogObject(enc zapcore.ObjectEncoder) error {
-	enc.AddInt("size_threshold", b.sizeThreshold)
-	enc.AddInt("ops_threshold", b.putsThreshold)
-	enc.AddDuration("time_threshold", b.timeThreshold)
+	sizeThreshold := "None"
+	if b.sizeThreshold > 0 {
+		sizeThreshold = strconv.FormatInt(int64(b.sizeThreshold), 10)
+	}
+
+	opThreshold := "None"
+	if b.putsThreshold > 0 {
+		opThreshold = strconv.FormatInt(int64(b.putsThreshold), 10)
+	}
+
+	timeThreshold := "None"
+	if b.timeThreshold > 0 {
+		timeThreshold = b.timeThreshold.String()
+	}
+
+	enc.AddString("size", fmt.Sprintf("%d (limit %s)", b.size, sizeThreshold))
+	enc.AddString("ops", fmt.Sprintf("%d (limit %s)", b.puts, opThreshold))
+
+	elapsedSinceLastReset := "N/A"
+	if !b.lastReset.IsZero() {
+		elapsedSinceLastReset = (time.Now().Sub(b.lastReset)).String()
+	}
+
+	enc.AddString("time", fmt.Sprintf("%s (limit %s)", elapsedSinceLastReset, timeThreshold))
+
+	if b.largestEntry != nil {
+		enc.AddString("largest_entry", fmt.Sprintf("%x (key %d bytes, value %d bytes)", b.largestEntry.Key, len(b.largestEntry.Key), len(b.largestEntry.Value)))
+	}
+
 	return nil
 }

@@ -11,6 +11,14 @@ type KV struct {
 	Key, Value []byte
 }
 
+func (kv *KV) Size() int {
+	if kv == nil {
+		return 0
+	}
+
+	return len(kv.Key) + len(kv.Value)
+}
+
 type Key []byte
 
 func (k Key) String() string {
