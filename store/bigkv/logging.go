@@ -19,7 +19,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var traceEnabled = logging.IsTraceEnabled("kvdb", "github.com/dfuse-io/kvdb/bigkv")
+var traceEnabled = logging.IsTraceEnabled("kvdb", "github.com/dfuse-io/kvdb/store/bigkv")
 var zlog *zap.Logger
 
 func init() {
