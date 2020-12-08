@@ -86,7 +86,7 @@ func (s *Server) BatchGet(keys *pbnetkv.Keys, stream pbnetkv.NetKV_BatchGetServe
 		if err != nil {
 			return wrapNotFoundError(err)
 		}
-		if err := stream.Send(&pbnetkv.KeyValue{Value: val}); err != nil {
+		if err := stream.Send(&pbnetkv.KeyValue{Value: val, Key: keys.Keys[0]}); err != nil {
 			return err
 		}
 		return nil
