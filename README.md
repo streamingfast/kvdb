@@ -29,8 +29,8 @@ The following DSNs are provided by this package:
 * Badger: `badger:///home/user/dfuse-data/component/my-badger.db`
   This is useful for local development.  It is a library (similar to RocksDB and LevelDB), and thus creates a database that cannot be shared.
 
-* NetKV: `netkv://localhost:6789`
-  This connects to a `netkv` server (which you can install with `go get github.com/dfuse-io/kvdb/store/netkv/server/netkvserver`), which in turn can serve a `badger://` database.  It allows for simple badger-based backend (single database, no replication, no scaling), but allow decoupling of dfuse processes
+* NetKV: `netkv://localhost:6789?insecure=true`
+  This connects to a `netkv` server (which you can install with `go install -v ./store/netkv/server/netkvserver` from this repo), which in turn can serve a `badger://` database.  It allows for simple badger-based backend (single database, no replication, no scaling), but allow decoupling of dfuse processes
 
 
 **Beware** that the TiKV backend does not support 0-length values. If
