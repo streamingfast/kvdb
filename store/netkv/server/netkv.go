@@ -95,7 +95,7 @@ func (s *Server) BatchGet(keys *pbnetkv.Keys, stream pbnetkv.NetKV_BatchGetServe
 	it := s.store.BatchGet(stream.Context(), keys.Keys)
 
 	for it.Next() {
-		if err := stream.Send(&pbnetkv.KeyValue{Value: it.Item().Value}); err != nil {
+		if err := stream.Send(&pbnetkv.KeyValue{Value: it.Item().Value, Key: it.Item().Key}); err != nil {
 			return err
 		}
 	}
