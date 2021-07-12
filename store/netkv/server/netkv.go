@@ -34,7 +34,7 @@ func Launch(listenAddr string, dsn string) (*Server, error) {
 		return nil, fmt.Errorf("failed listening: %w", err)
 	}
 
-	gsrv := grpc.NewServer()
+	gsrv := grpc.NewServer(grpc.MaxRecvMsgSize(1024 * 1024 * 100))
 
 	s := &Server{
 		store:      str,
