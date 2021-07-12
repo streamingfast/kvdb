@@ -43,6 +43,7 @@ func NewStore(dsnString string) (store.KVStore, error) {
 	var grpcOpts []grpc.DialOption
 	if dsn.Query().Get("insecure") == "true" {
 		grpcOpts = append(grpcOpts, grpc.WithInsecure())
+		grpcOpts = append(grpcOpts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(1024*1024*100)))
 	}
 
 	// TODO: init gRPC connection to the `dsn.Host`
