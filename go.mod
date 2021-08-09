@@ -1,4 +1,4 @@
-module github.com/dfuse-io/kvdb
+module github.com/streamingfast/kvdb
 
 require (
 	cloud.google.com/go/bigtable v1.2.0

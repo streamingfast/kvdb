@@ -9,10 +9,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/dfuse-io/kvdb/store"
 	"github.com/dfuse-io/logging"
 	"github.com/dgraph-io/badger/v2"
 	"github.com/dgraph-io/badger/v2/options"
+	"github.com/streamingfast/kvdb/store"
 	"go.uber.org/zap"
 )
 

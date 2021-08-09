@@ -1,11 +1,11 @@
-# dfuse Key/Value Store
+# StreamingFast Key/Value Store
 
-[![reference](https://img.shields.io/badge/godoc-reference-5272B4.svg?style=flat-square)](https://pkg.go.dev/github.com/dfuse-io/kvdb)
+[![reference](https://img.shields.io/badge/godoc-reference-5272B4.svg?style=flat-square)](https://pkg.go.dev/github.com/streamingfast/kvdb)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 
 This library contains different implementations for storing blocks and transactions in a key/value database.
-It is used by **[dfuse](https://github.com/dfuse-io/dfuse)**.
+It is used by **[StreamingFast](https://github.com/streamingfast/streamingfast)**.
 
 ## Usage
 
@@ -30,7 +30,7 @@ The following DSNs are provided by this package:
   This is useful for local development.  It is a library (similar to RocksDB and LevelDB), and thus creates a database that cannot be shared.
 
 * NetKV: `netkv://localhost:6789?insecure=true`
-  This connects to a `netkv` server (which you can install with `go install -v ./store/netkv/server/netkvserver` from this repo), which in turn can serve a `badger://` database.  It allows for simple badger-based backend (single database, no replication, no scaling), but allow decoupling of dfuse processes
+  This connects to a `netkv` server (which you can install with `go install -v ./store/netkv/server/netkvserver` from this repo), which in turn can serve a `badger://` database.  It allows for simple badger-based backend (single database, no replication, no scaling), but allow decoupling of StreamingFast processes
 
 
 **Beware** that the TiKV backend does not support 0-length values. If
@@ -43,10 +43,10 @@ option.
 **Issues and PR in this repo related strictly to the kvdb library.**
 
 Report any protocol-specific issues in their
-[respective repositories](https://github.com/dfuse-io/dfuse#protocols)
+[respective repositories](https://github.com/streamingfast/streamingfast#protocols)
 
 **Please first refer to the general
-[dfuse contribution guide](https://github.com/dfuse-io/dfuse/blob/master/CONTRIBUTING.md)**,
+[StreamingFast contribution guide](https://github.com/streamingfast/streamingfast/blob/master/CONTRIBUTING.md)**,
 if you wish to contribute to this code base.
 
 

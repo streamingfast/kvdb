@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dfuse-io/kvdb/store"
-	"github.com/dfuse-io/kvdb/store/storetest"
 	"github.com/dfuse-io/logging"
+	"github.com/streamingfast/kvdb/store"
+	"github.com/streamingfast/kvdb/store/storetest"
 	"github.com/stretchr/testify/require"
 )
 

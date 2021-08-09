@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dfuse-io/kvdb/store"
-	_ "github.com/dfuse-io/kvdb/store/badger"
-	netkvserver "github.com/dfuse-io/kvdb/store/netkv/server"
-	"github.com/dfuse-io/kvdb/store/storetest"
 	"github.com/dfuse-io/logging"
+	"github.com/streamingfast/kvdb/store"
+	_ "github.com/streamingfast/kvdb/store/badger"
+	netkvserver "github.com/streamingfast/kvdb/store/netkv/server"
+	"github.com/streamingfast/kvdb/store/storetest"
 	"github.com/stretchr/testify/require"
 )
 

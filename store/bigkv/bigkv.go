@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/bigtable"
-	"github.com/dfuse-io/kvdb/store"
 	"github.com/dfuse-io/logging"
+	"github.com/streamingfast/kvdb/store"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"

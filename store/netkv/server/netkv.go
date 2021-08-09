@@ -6,8 +6,8 @@ import (
 	"io"
 	"net"
 
-	"github.com/dfuse-io/kvdb/store"
-	pbnetkv "github.com/dfuse-io/kvdb/store/netkv/pb"
+	"github.com/streamingfast/kvdb/store"
+	pbnetkv "github.com/streamingfast/kvdb/store/netkv/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"

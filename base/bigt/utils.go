@@ -22,8 +22,8 @@ import (
 	"strings"
 
 	"cloud.google.com/go/bigtable"
-	"github.com/dfuse-io/kvdb"
 	"github.com/golang/protobuf/proto"
+	"github.com/streamingfast/kvdb"
 )
 
 func IsEmptyRow(row bigtable.Row) bool {

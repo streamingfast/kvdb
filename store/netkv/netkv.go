@@ -9,8 +9,8 @@ import (
 
 	"github.com/dfuse-io/logging"
 
-	"github.com/dfuse-io/kvdb/store"
-	pbnetkv "github.com/dfuse-io/kvdb/store/netkv/pb"
+	"github.com/streamingfast/kvdb/store"
+	pbnetkv "github.com/streamingfast/kvdb/store/netkv/pb"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )

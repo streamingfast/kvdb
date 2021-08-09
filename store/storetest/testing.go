@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dfuse-io/kvdb/store"
+	"github.com/streamingfast/kvdb/store"
 )
 
 var debug = false

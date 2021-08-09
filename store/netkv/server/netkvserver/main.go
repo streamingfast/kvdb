@@ -8,8 +8,8 @@ import (
 	"strings"
 	"syscall"
 
-	_ "github.com/dfuse-io/kvdb/store/badger"
-	netkvserver "github.com/dfuse-io/kvdb/store/netkv/server"
+	_ "github.com/streamingfast/kvdb/store/badger"
+	netkvserver "github.com/streamingfast/kvdb/store/netkv/server"
 )
 
 // This is a simple, example server for hosting a NetKV, backed (most

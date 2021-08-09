@@ -22,5 +22,5 @@ import (
 var zlog *zap.Logger
 
 func init() {
-	logging.Register("github.com/dfuse-io/kvdb/base/bigt", &zlog)
+	logging.Register("github.com/streamingfast/kvdb/base/bigt", &zlog)
 }
