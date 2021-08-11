@@ -4,7 +4,6 @@ require (
 	cloud.google.com/go/bigtable v1.2.0
 	github.com/OneOfOne/xxhash v1.2.5 // indirect
 	github.com/Sytten/logrus-zap-hook v0.1.0
-	github.com/dfuse-io/logging v0.0.0-20201125153217-f29c382faa42
 	github.com/dgraph-io/badger/v2 v2.0.3
 	github.com/edsrzf/mmap-go v0.0.0-20160512033002-935e0e8a636c // indirect
 	github.com/golang/protobuf v1.3.4
@@ -20,6 +19,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.1.0 // indirect
 	github.com/sirupsen/logrus v1.4.2
+	github.com/streamingfast/logging v0.0.0-20210811175431-f3b44b61606a // indirect
 	github.com/stretchr/testify v1.4.0
 	github.com/tikv/client-go v0.0.0-20200824032810-95774393107b
 	go.opencensus.io v0.22.2

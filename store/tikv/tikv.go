@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/dfuse-io/logging"
+	"github.com/streamingfast/logging"
 	"github.com/streamingfast/kvdb/store"
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/key"

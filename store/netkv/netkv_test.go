@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dfuse-io/logging"
+	"github.com/streamingfast/logging"
 	"github.com/streamingfast/kvdb/store"
 	_ "github.com/streamingfast/kvdb/store/badger"
 	netkvserver "github.com/streamingfast/kvdb/store/netkv/server"

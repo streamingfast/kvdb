@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/dfuse-io/logging"
+	"github.com/streamingfast/logging"
 
 	"github.com/streamingfast/kvdb/store"
 	pbnetkv "github.com/streamingfast/kvdb/store/netkv/pb"

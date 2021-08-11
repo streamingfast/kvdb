@@ -7,7 +7,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/dfuse-io/logging"
+	"github.com/streamingfast/logging"
 	"github.com/streamingfast/kvdb/store"
 	"github.com/streamingfast/kvdb/store/storetest"
 	"github.com/stretchr/testify/require"

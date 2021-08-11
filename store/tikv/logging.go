@@ -18,7 +18,7 @@ import (
 	"io/ioutil"
 	"runtime"
 
-	"github.com/dfuse-io/logging"
+	"github.com/streamingfast/logging"
 	"github.com/sirupsen/logrus"
 	"github.com/tikv/client-go/config"
 	"go.uber.org/zap"
