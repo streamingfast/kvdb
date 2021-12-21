@@ -18,9 +18,9 @@ import (
 	"io/ioutil"
 	"runtime"
 
-	"github.com/streamingfast/logging"
 	"github.com/sirupsen/logrus"
-	"github.com/tikv/client-go/config"
+	"github.com/streamingfast/logging"
+	"github.com/tikv/client-go/v2/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -49,14 +49,16 @@ func init() {
 	logrus.StandardLogger().SetReportCaller(true)
 }
 
-type tikvConfigRaw config.Raw
+type tikvConfigRaw config.TiKVClient
 
 func (c tikvConfigRaw) MarshalLogObject(enc zapcore.ObjectEncoder) error {
-	v := config.Raw(c)
+	v := config.TiKVClient(c)
 
-	enc.AddInt("max_scan_limit", v.MaxScanLimit)
-	enc.AddInt("max_batch_put_size", v.MaxBatchPutSize)
-	enc.AddInt("batch_pair_count", v.BatchPairCount)
+	enc.AddInt("max_batch_size", int(v.MaxBatchSize))
+	enc.AddInt("max_batch_wait_time", int(v.MaxBatchWaitTime))
+	enc.AddInt("batch_wait_size", int(v.BatchWaitSize))
+	enc.AddBool("enable_chunk_rpc", v.EnableChunkRPC)
+	enc.AddString("grpc_compression_type", v.GrpcCompressionType)
 	return nil
 }
 
