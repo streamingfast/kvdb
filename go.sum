@@ -433,6 +433,8 @@ github.com/spf13/viper v1.3.2/go.mod h1:ZiWeW+zYFKm7srdB9IoDzzZXaJaI5eL9QjNiN/DM
 github.com/spf13/viper v1.4.0/go.mod h1:PTJ7Z/lr49W6bUbkmS1V3by4uWynFiR9p7+dSq/yZzE=
 github.com/streamingfast/logging v0.0.0-20210811175431-f3b44b61606a h1:Hy7ST3+wGmk4nyBanXKzhRXE63E77UEF93oG51dfq6c=
 github.com/streamingfast/logging v0.0.0-20210811175431-f3b44b61606a/go.mod h1:4GdqELhZOXj4xwc4IaBmzofzdErGynnaSzuzxy0ZIBo=
+github.com/streamingfast/tikv-client-go/v2 v2.0.0-rc.0.20211221214712-b3d986cd4b5f h1:p5fnASBWpe+DQZQ6ro8OLCgAe6+eTCg1y/Z6m4tMPIg=
+github.com/streamingfast/tikv-client-go/v2 v2.0.0-rc.0.20211221214712-b3d986cd4b5f/go.mod h1:wRuh+W35daKTiYBld0oBlT6PSkzEVr+pB/vChzJZk+8=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.2.0/go.mod h1:qt09Ya8vawLte6SNmTgCsAVtYtaKzEcn8ATUoHMkEqE=
@@ -460,8 +462,6 @@ github.com/thoas/go-funk v0.8.0/go.mod h1:+IWnUfUmFO1+WVYQWQtIJHeRRdaIyyYglZN7xz
 github.com/tidwall/gjson v1.3.5/go.mod h1:P256ACg0Mn+j1RXIDXoss50DeIABTYK1PULOJHhxOls=
 github.com/tidwall/match v1.0.1/go.mod h1:LujAq0jyVjBy028G1WhWfIzbpQfMO8bBZ6Tyb0+pL9E=
 github.com/tidwall/pretty v1.0.0/go.mod h1:XNkn88O1ChpSDQmQeStsy+sBenx6DDtFZJxhVysOjyk=
-github.com/tikv/client-go/v2 v2.0.0-rc.0.20211221041211-e9de5625c45c h1:1P6iN1csRSZNHXuaylArmG3/bA5MpYVzc9ZkdHK/L2Y=
-github.com/tikv/client-go/v2 v2.0.0-rc.0.20211221041211-e9de5625c45c/go.mod h1:wRuh+W35daKTiYBld0oBlT6PSkzEVr+pB/vChzJZk+8=
 github.com/tikv/pd v1.1.0-beta.0.20211029083450-e65f0c55b6ae h1:PmnkhiOopgMZYDQ7Htj1kt/zwW4MEOUL+Dem6WLZISY=
 github.com/tikv/pd v1.1.0-beta.0.20211029083450-e65f0c55b6ae/go.mod h1:varH0IE0jJ9E9WN2Ei/N6pajMlPkcXdDEf7f5mmsUVQ=
 github.com/tklauser/go-sysconf v0.3.4/go.mod h1:Cl2c8ZRWfHD5IrfHo9VN+FX9kCFjIOyVklgXycLB6ek=

@@ -1,5 +1,7 @@
 module github.com/streamingfast/kvdb
 
+go 1.14
+
 require (
 	cloud.google.com/go/bigtable v1.2.0
 	github.com/OneOfOne/xxhash v1.2.5 // indirect
@@ -18,4 +20,4 @@ require (
 	google.golang.org/grpc v1.29.1
 )
 
-go 1.14
+replace github.com/tikv/client-go/v2 => github.com/streamingfast/tikv-client-go/v2 v2.0.0-rc.0.20211221214712-b3d986cd4b5f

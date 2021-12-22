@@ -371,14 +371,15 @@ func (s *Store) scanIterator(ctx context.Context, zlogger *zap.Logger, startKey,
 }
 
 func (s *Store) scan(ctx context.Context, zlogger *zap.Logger, startKey, exclusiveEnd []byte, limit store.Limit, options []store.ReadOption, onKV func(kv store.KV) bool) (err error) {
-	scanOption := tikvScanOption(options)
+	readOptions := store.NewReadOptions(options...)
+	scanOptions := tikvScanOption(readOptions)
 
 	if traceEnabled {
 		zlogger.Debug("scanning",
 			zap.Stringer("start_key", store.Key(startKey)),
 			zap.Stringer("exclusive_end_key", store.Key(exclusiveEnd)),
-			zap.Bool("key_only", scanOption.KeyOnly),
 			zap.Stringer("limit", store.Limit(limit)),
+			zap.Object("options", readOptions),
 		)
 	}
 
@@ -393,8 +394,7 @@ func (s *Store) scan(ctx context.Context, zlogger *zap.Logger, startKey, exclusi
 			}
 		}
 
-		// FIXME: Was using `, scanOption`, see (search for `tikv-scan-option` marker)
-		keys, values, err := s.client.Scan(ctx, startKey, exclusiveEnd, int(sliceSize))
+		keys, values, err := s.client.Scan(ctx, startKey, exclusiveEnd, int(sliceSize), scanOptions...)
 		if err != nil {
 			return err
 		}
@@ -471,31 +471,14 @@ func (s *Store) unformatValue(v []byte) (out []byte, err error) {
 	return v, nil
 }
 
-// FIXME: Temporary until more work is done in https://github.com/tikv/client-go/issues/401 (marker `tikv-scan-option`)
-var defaultScanOption = TIKVDefaultScanOption()
-
-func tikvScanOption(options []store.ReadOption) TIKVScanOption {
-	if len(options) == 0 {
-		return defaultScanOption
+func tikvScanOption(readOptions *store.ReadOptions) (out []rawkv.ScanOption) {
+	if readOptions == nil {
+		return nil
 	}
 
-	readOptions := store.ReadOptions{}
-	for _, opt := range options {
-		opt.Apply(&readOptions)
+	if readOptions.KeyOnly {
+		out = append(out, rawkv.ScanKeyOnly())
 	}
 
-	return TIKVScanOption{
-		KeyOnly: readOptions.KeyOnly,
-	}
-}
-
-// ScanOption is used to provide additional information for scaning operation.
-type TIKVScanOption struct {
-	KeyOnly bool // if true, the result will only contains keys
-}
-
-func TIKVDefaultScanOption() TIKVScanOption {
-	return TIKVScanOption{
-		KeyOnly: false,
-	}
+	return
 }

@@ -1,5 +1,7 @@
 package store
 
+import "go.uber.org/zap/zapcore"
+
 type EmtpyValueEnabler interface {
 	EnableEmpty()
 }
@@ -21,8 +23,31 @@ func (e emptyValueOpt) apply(s KVStore) {
 	}
 }
 
+func NewReadOptions(opts ...ReadOption) (out *ReadOptions) {
+	if len(opts) == 0 {
+		return nil
+	}
+
+	out = &ReadOptions{}
+	for _, opt := range opts {
+		opt.Apply(out)
+	}
+
+	return out
+}
+
 type ReadOptions struct {
 	KeyOnly bool
+}
+
+func (o *ReadOptions) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+	if o == nil {
+		encoder.AddBool("key_only", false)
+		return nil
+	}
+
+	encoder.AddBool("key_only", o.KeyOnly)
+	return nil
 }
 
 type ReadOption interface {
