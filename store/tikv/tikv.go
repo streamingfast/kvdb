@@ -166,7 +166,7 @@ func (s *Store) FlushPuts(ctx context.Context) error {
 		values[idx] = kv.Value
 	}
 
-	err := s.client.BatchPut(ctx, keys, values, nil)
+	err := s.client.BatchPut(ctx, keys, values)
 	if err != nil {
 		return err
 	}
