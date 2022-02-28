@@ -197,24 +197,24 @@ func testBasic(t *testing.T, driver store.KVStore, _ *DriverCapabilities, _ kvSt
 	require.Equal(t, store.ErrNotFound, err)
 
 	// testing Prefix without limit
-	testPrefix(t, driver, nil, store.Unlimited, all)
-	testPrefix(t, driver, []byte("a"), store.Unlimited, all[:1])
-	testPrefix(t, driver, []byte("c"), store.Unlimited, all[5:6])
-	testPrefix(t, driver, []byte("b"), store.Unlimited, all[1:5])
-	testPrefix(t, driver, []byte("ba"), store.Unlimited, all[1:4])
+	testUnamedPrefix(t, driver, nil, store.Unlimited, all)
+	testUnamedPrefix(t, driver, []byte("a"), store.Unlimited, all[:1])
+	testUnamedPrefix(t, driver, []byte("c"), store.Unlimited, all[5:6])
+	testUnamedPrefix(t, driver, []byte("b"), store.Unlimited, all[1:5])
+	testUnamedPrefix(t, driver, []byte("ba"), store.Unlimited, all[1:4])
 
 	// testing Prefix with limit
-	testPrefix(t, driver, nil, 2, all[:2])
-	testPrefix(t, driver, nil, 5, all[:5])
-	testPrefix(t, driver, nil, 10, all)
+	testUnamedPrefix(t, driver, nil, 2, all[:2])
+	testUnamedPrefix(t, driver, nil, 5, all[:5])
+	testUnamedPrefix(t, driver, nil, 10, all)
 
-	testPrefix(t, driver, []byte("a"), 2, all[:1])
-	testPrefix(t, driver, []byte("c"), 1, all[5:6])
-	testPrefix(t, driver, []byte("b"), 3, all[1:4])
-	testPrefix(t, driver, []byte("ba"), 10, all[1:4])
+	testUnamedPrefix(t, driver, []byte("a"), 2, all[:1])
+	testUnamedPrefix(t, driver, []byte("c"), 1, all[5:6])
+	testUnamedPrefix(t, driver, []byte("b"), 3, all[1:4])
+	testUnamedPrefix(t, driver, []byte("ba"), 10, all[1:4])
 
 	// Test key-only feature
-	testPrefix(t, driver, []byte("ba"), 10, []store.KV{
+	testPrefix(t, "key only", driver, []byte("ba"), 10, []store.KV{
 		{Key: all[1].Key, Value: nil},
 		{Key: all[2].Key, Value: nil},
 		{Key: all[3].Key, Value: nil},
@@ -231,7 +231,7 @@ func testBasic(t *testing.T, driver store.KVStore, _ *DriverCapabilities, _ kvSt
 	testBatchPrefix(t, "multiple all empty, limited", driver, [][]byte{[]byte("d"), []byte("f")}, 10, nil)
 
 	// Test key-only feature
-	testBatchPrefix(t, "multiple series, unlimited", driver, [][]byte{[]byte("ba"), []byte("c")}, store.Unlimited,
+	testBatchPrefix(t, "key only, multiple series, unlimited", driver, [][]byte{[]byte("ba"), []byte("c")}, store.Unlimited,
 		[]store.KV{
 			{Key: all[1].Key, Value: nil},
 			{Key: all[2].Key, Value: nil},
@@ -332,7 +332,7 @@ func testEmtpyValue(t *testing.T, driver store.KVStore, capabilities *DriverCapa
 	}
 }
 
-func testPrefix(t *testing.T, driver store.KVStore, prefix []byte, limit int, exp []store.KV, options ...store.ReadOption) {
+func testUnamedPrefix(t *testing.T, driver store.KVStore, prefix []byte, limit int, exp []store.KV, options ...store.ReadOption) {
 	var got []store.KV
 	itr := driver.Prefix(context.Background(), prefix, limit, options...)
 	for itr.Next() {
@@ -341,6 +341,19 @@ func testPrefix(t *testing.T, driver store.KVStore, prefix []byte, limit int, ex
 	testPrintKVs(fmt.Sprintf("test prefix with prefix %q", string(prefix)), got)
 	require.NoError(t, itr.Err())
 	require.Equal(t, exp, got)
+}
+
+func testPrefix(t *testing.T, name string, driver store.KVStore, prefix []byte, limit int, exp []store.KV, options ...store.ReadOption) {
+	t.Run(name, func(t *testing.T) {
+		var got []store.KV
+		itr := driver.Prefix(context.Background(), prefix, limit, options...)
+		for itr.Next() {
+			got = append(got, itr.Item())
+		}
+		testPrintKVs(fmt.Sprintf("test prefix with prefix %q", string(prefix)), got)
+		require.NoError(t, itr.Err())
+		require.Equal(t, exp, got)
+	})
 }
 
 func testBatchPrefix(t *testing.T, name string, driver store.KVStore, prefixes [][]byte, limit int, exp []store.KV, options ...store.ReadOption) {

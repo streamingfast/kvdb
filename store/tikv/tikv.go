@@ -6,11 +6,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/streamingfast/logging"
 	"github.com/streamingfast/kvdb/store"
-	"github.com/tikv/client-go/config"
-	"github.com/tikv/client-go/key"
-	"github.com/tikv/client-go/rawkv"
+	"github.com/streamingfast/logging"
+	"github.com/tikv/client-go/v2/config"
+	"github.com/tikv/client-go/v2/kv"
+	"github.com/tikv/client-go/v2/rawkv"
 	"go.uber.org/zap"
 )
 
@@ -25,8 +25,6 @@ type Store struct {
 	compressor store.Compressor
 
 	batchPut *store.BatchOp
-
-	maxScanSizeLimit uint64
 
 	// TIKV does not support empty values, if this flag is set
 	// tikv will prepend an empty byte on write and remove the first byte
@@ -66,20 +64,9 @@ func NewStore(dsnString string) (store.KVStore, error) {
 	dsnQuery := store.DSNQuery(dsn.Query())
 	var rawValue string
 
-	clientConfig := config.Default()
-	clientConfig.Raw.MaxScanLimit, rawValue, err = dsnQuery.IntOption("tikv_raw_max_scan_limit", clientConfig.Raw.MaxScanLimit)
+	rawkv.MaxRawKVScanLimit, rawValue, err = dsnQuery.IntOption("tikv_raw_max_scan_limit", rawkv.MaxRawKVScanLimit)
 	if err != nil {
 		return nil, fmt.Errorf("TiKV raw max scan limit option %q is not a valid number: %w", rawValue, err)
-	}
-
-	clientConfig.Raw.MaxBatchPutSize, rawValue, err = dsnQuery.IntOption("tikv_raw_max_batch_put_size", clientConfig.Raw.MaxBatchPutSize)
-	if err != nil {
-		return nil, fmt.Errorf("TiKV raw max batch put size option %q is not a valid number: %w", rawValue, err)
-	}
-
-	clientConfig.Raw.BatchPairCount, rawValue, err = dsnQuery.IntOption("tikv_raw_batch_pair_count", clientConfig.Raw.BatchPairCount)
-	if err != nil {
-		return nil, fmt.Errorf("TiKV raw batch pair count option %q is not a valid number: %w", rawValue, err)
 	}
 
 	compression, _ := dsnQuery.StringOption("compression", "")
@@ -119,22 +106,20 @@ func NewStore(dsnString string) (store.KVStore, error) {
 		zap.String("dsn", dsnString),
 		zap.String("key_prefix", keyPrefix),
 		zap.Object("compressor", compressor),
-		zap.Object("tikv_raw_config", tikvConfigRaw(clientConfig.Raw)),
 		zap.Object("batcher", batcher),
 	)
 
-	client, err := rawkv.NewClient(context.Background(), hosts, clientConfig)
+	client, err := rawkv.NewClient(context.Background(), hosts, config.DefaultConfig().Security)
 	if err != nil {
 		return nil, err
 	}
 
 	s := &Store{
-		dsn:              dsnString,
-		client:           client,
-		batchPut:         batcher,
-		compressor:       compressor,
-		keyPrefix:        []byte(keyPrefix),
-		maxScanSizeLimit: uint64(clientConfig.Raw.MaxScanLimit),
+		dsn:        dsnString,
+		client:     client,
+		batchPut:   batcher,
+		compressor: compressor,
+		keyPrefix:  []byte(keyPrefix),
 	}
 
 	return s, nil
@@ -284,7 +269,7 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ..
 	zlogger.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
 
 	startKey := s.withPrefix(prefix)
-	exclusiveEnd := key.Key(startKey).PrefixNext()
+	exclusiveEnd := kv.PrefixNextKey(startKey)
 
 	// This performs a full scan, can only happen if the actual prefix is empty, which is permitted only in package's tests
 	if len(startKey) == 0 {
@@ -320,7 +305,7 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int, o
 
 		for _, prefix := range prefixes {
 			startKey := s.withPrefix(prefix)
-			exclusiveEnd := key.Key(startKey).PrefixNext()
+			exclusiveEnd := kv.PrefixNextKey(startKey)
 
 			// This performs a full scan, can only happen if the actual prefix is empty, which is permitted only in package's tests
 			if len(startKey) == 0 {
@@ -386,21 +371,22 @@ func (s *Store) scanIterator(ctx context.Context, zlogger *zap.Logger, startKey,
 }
 
 func (s *Store) scan(ctx context.Context, zlogger *zap.Logger, startKey, exclusiveEnd []byte, limit store.Limit, options []store.ReadOption, onKV func(kv store.KV) bool) (err error) {
-	scanOption := tikvScanOption(options)
+	readOptions := store.NewReadOptions(options...)
+	scanOptions := tikvScanOption(readOptions)
 
 	if traceEnabled {
 		zlogger.Debug("scanning",
 			zap.Stringer("start_key", store.Key(startKey)),
 			zap.Stringer("exclusive_end_key", store.Key(exclusiveEnd)),
-			zap.Bool("key_only", scanOption.KeyOnly),
 			zap.Stringer("limit", store.Limit(limit)),
+			zap.Object("options", readOptions),
 		)
 	}
 
 	count := uint64(0)
 
 	for {
-		sliceSize := uint64(s.maxScanSizeLimit)
+		sliceSize := uint64(rawkv.MaxRawKVScanLimit)
 		if limit.Bounded() {
 			missingCount := uint64(limit) - count
 			if missingCount < sliceSize {
@@ -408,7 +394,7 @@ func (s *Store) scan(ctx context.Context, zlogger *zap.Logger, startKey, exclusi
 			}
 		}
 
-		keys, values, err := s.client.Scan(ctx, startKey, exclusiveEnd, int(sliceSize), scanOption)
+		keys, values, err := s.client.Scan(ctx, startKey, exclusiveEnd, int(sliceSize), scanOptions...)
 		if err != nil {
 			return err
 		}
@@ -435,7 +421,7 @@ func (s *Store) scan(ctx context.Context, zlogger *zap.Logger, startKey, exclusi
 		}
 
 		if len(keys) > 0 {
-			startKey = key.Key(keys[len(keys)-1]).Next()
+			startKey = kv.NextKey(keys[len(keys)-1])
 		}
 	}
 }
@@ -485,19 +471,14 @@ func (s *Store) unformatValue(v []byte) (out []byte, err error) {
 	return v, nil
 }
 
-var defaultScanOption = rawkv.DefaultScanOption()
-
-func tikvScanOption(options []store.ReadOption) rawkv.ScanOption {
-	if len(options) == 0 {
-		return defaultScanOption
+func tikvScanOption(readOptions *store.ReadOptions) (out []rawkv.ScanOption) {
+	if readOptions == nil {
+		return nil
 	}
 
-	readOptions := store.ReadOptions{}
-	for _, opt := range options {
-		opt.Apply(&readOptions)
+	if readOptions.KeyOnly {
+		out = append(out, rawkv.ScanKeyOnly())
 	}
 
-	return rawkv.ScanOption{
-		KeyOnly: readOptions.KeyOnly,
-	}
+	return
 }

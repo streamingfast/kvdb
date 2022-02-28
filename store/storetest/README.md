@@ -62,7 +62,9 @@ giving here as a quick succession of steps without explanation.
 An automatic script exists in `./devel/start_tikv.sh`, it streamlines the instructions below.
 
 ```
-minikube start # If you don't have a local configured cluster
+# The tikv-operator has not been updated for K8S 1.22+ which removed support for CRD beta
+# Hopefully the version 1.21 is still supported by Minikube by the time you run this.
+minikube start --kubernetes-version=v1.21.10 # If you don't have a local configured cluster
 
 ## **Stop**!
 # Ensure your kubectl points to the created cluster above before continuing
@@ -104,7 +106,7 @@ kubectl -n tikv-cluster port-forward svc/basic-tikv-peer 20160:20160
 You should now be able to run the tests:
 
 ```
-TEST_TIKV=tikv://127.0.0.1:2379/data go test ./store/tikv/...
+TEST_TIKV=tikv://127.0.0.1:2379/data-{prefix} go test -count=1 ./store/tikv/...
 ```
 
 **Important** For now, tests leave some data in the database, so if you want to

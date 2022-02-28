@@ -21,14 +21,14 @@ main() {
   minikube update-context
   minikube status
 
-  kubectl apply -f https://raw.githubusercontent.com/tikv/tikv-operator/master/manifests/crd.v1beta1.yaml
+  kubectl apply -f ./devel/k8s/crd.yaml
   helm repo add pingcap https://charts.pingcap.org/
 
   kubectl create ns tikv-operator
   helm install -n tikv-operator tikv-operator pingcap/tikv-operator --version v0.1.0
 
   kubectl create ns tikv-cluster
-  kubectl -n tikv-cluster apply -f https://raw.githubusercontent.com/tikv/tikv-operator/master/examples/basic/tikv-cluster.yaml
+  kubectl -n tikv-cluster apply -f ./devel/k8s/tikv-cluster.yaml
   echo ""
 
   echo "Waiting for TiKV cluster to be ready, can take a few minutes (needs to pull Docker images)"
