@@ -3,6 +3,18 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Removed
+
+- [`tivk`] **BREAKING** The raw max batch put size dsn query parameter `tikv_raw_max_batch_put_size=<value>` has been removed (the `tikv-client/v2` keeps it private now).
+- [`tivk`] **BREAKING** The raw batch pair count dsn query parameter `tikv_raw_batch_pair_count=<value>` has been removed (the `tikv-client/v2` keeps it private now).
+
+### Changed
+
+- [`tivk`] **BREAKING** Upgraded to `tikv-client/v2` version, this currently requires TiKV version 5.0.0+.
+- [`tivk`] **BREAKING** The raw max scan limit dsn query parameter `tikv_raw_max_scan_limit=<value>` now applies globally to all instances. This means if in the use application, multiple DSN for TiKV are provided, the last one with `tikv_raw_max_scan_limit` wins.
+
 ## [v0.1.0]
 
 ### Fixed
@@ -13,10 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [`tikv`] Fixed `store.WithEmptyValue` support when using compression that was not compressing the "formatted" value that should have been sent to TiKV.
 
 ### Changed
-- [`tivk`] Upgraded to `tikv-client/v2` version, here the changes related to that:
- - The raw max scan limit dsn query parameter `tikv_raw_max_scan_limit=<value>` now applies globally to all instances. This means if in the use application, multiple DSN for TiKV are provided, the last one with `tikv_raw_max_scan_limit` wins.
- - The raw max batch put size dsn query parameter `tikv_raw_max_batch_put_size=<value>` has been removed (the client keeps it private now).
- - The raw batch pair count dsn query parameter `tikv_raw_batch_pair_count=<value>` has been removed (the client keeps it private now).
 - [`core`] Now supporting key-only iteration for `BatchPrefix`, `Prefix` and `Scan` calls.
 - [`core`] **BREAKING** Added `options ...store.ReadOption` options to `store.KVStore#BatchPrefix`.
 - [`core`] **BREAKING** Added `options ...store.ReadOption` options to `store.KVStore#Prefix`.
