@@ -69,7 +69,11 @@ func (s *Store) Close() error {
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 	zlogger := logging.Logger(ctx, zlog)
-	zlogger.Debug("putting", zap.Stringer("key", store.Key(key)))
+
+	if tracer.Enabled() {
+		zlogger.Debug("putting key in store", zap.Stringer("key", store.Key(key)))
+	}
+
 	s.putBatch = append(s.putBatch, &pbnetkv.KeyValue{Key: key, Value: value})
 	return nil
 }

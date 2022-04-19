@@ -8,12 +8,12 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/klauspost/compress v1.10.2
 	github.com/sirupsen/logrus v1.6.0
-	github.com/streamingfast/logging v0.0.0-20210811175431-f3b44b61606a
+	github.com/streamingfast/logging v0.0.0-20220405224725-2755dab2ce75
 	github.com/stretchr/testify v1.7.0
 	github.com/tikv/client-go/v2 v2.0.1-0.20220224085007-df187fa79aa1
 	go.opencensus.io v0.23.0
 	go.uber.org/multierr v1.7.0
-	go.uber.org/zap v1.20.0
+	go.uber.org/zap v1.21.0
 	google.golang.org/api v0.70.0
 	google.golang.org/grpc v1.44.0
 )
@@ -59,11 +59,12 @@ require (
 	github.com/teris-io/shortid v0.0.0-20171029131806-771a37caa5cf // indirect
 	github.com/tikv/pd/client v0.0.0-20220216070739-26c668271201 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9 // indirect
+	golang.org/x/crypto v0.0.0-20220214200702-86341886e292 // indirect
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20220209214540-3681064d5158 // indirect
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/appengine v1.6.7 // indirect

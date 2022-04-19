@@ -16,12 +16,6 @@ package store
 
 import (
 	"github.com/streamingfast/logging"
-	"go.uber.org/zap"
 )
 
-var traceEnabled = logging.IsTraceEnabled("kvdb", "github.com/streamingfast/kvdb/store")
-var zlog *zap.Logger
-
-func init() {
-	logging.Register("github.com/streamingfast/kvdb/store", &zlog)
-}
+var zlog, tracer = logging.PackageLogger("kvdb", "github.com/streamingfast/kvdb/store")

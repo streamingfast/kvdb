@@ -25,17 +25,14 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-var traceEnabled = logging.IsTraceEnabled("kvdb", "github.com/streamingfast/kvdb/store/tikv")
-var zlog *zap.Logger
+var hook = &logrusHook{}
+
+var zlog, tracer = logging.PackageLogger("kvdb", "github.com/streamingfast/kvdb/store/tikv", logging.LoggerOnUpdate(func(newLogger *zap.Logger) {
+	hook.logger = newLogger.Named("tikv-client")
+	reconfigureLogrusLevel(hook.logger)
+}))
 
 func init() {
-	hook := &logrusHook{}
-
-	logging.Register("github.com/streamingfast/kvdb/store/tikv", &zlog, logging.RegisterOnUpdate(func(newLogger *zap.Logger) {
-		hook.logger = newLogger.Named("tikv-client")
-		reconfigureLogrusLevel(hook.logger)
-	}))
-
 	// The code here is used to re-configured standard logger on `logrus` library which is used
 	// by tikv-client to log stuff.
 	//

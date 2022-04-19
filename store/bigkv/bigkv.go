@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/bigtable"
-	"github.com/streamingfast/logging"
 	"github.com/streamingfast/kvdb/store"
+	"github.com/streamingfast/logging"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -178,7 +178,7 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 }
 
 func (s *Store) FlushPuts(ctx context.Context) error {
-	if traceEnabled {
+	if tracer.Enabled() {
 		logging.Logger(ctx, zlog).Debug("flushing puts")
 	}
 
@@ -220,7 +220,7 @@ func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
 }
 
 func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
-	if traceEnabled {
+	if tracer.Enabled() {
 		logging.Logger(ctx, zlog).Debug("batch get", zap.Int("key_count", len(keys)))
 	}
 
@@ -248,7 +248,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 }
 
 func (s *Store) BatchDelete(ctx context.Context, deletionKeys [][]byte) (err error) {
-	if traceEnabled {
+	if tracer.Enabled() {
 		logging.Logger(ctx, zlog).Debug("batch delete", zap.Int("key_count", len(deletionKeys)))
 	}
 
@@ -293,7 +293,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int,
 	startKey := s.withPrefix(start)
 	endKey := s.withPrefix(exclusiveEnd)
 
-	if traceEnabled {
+	if tracer.Enabled() {
 		logging.Logger(ctx, zlog).Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
 	}
 
@@ -323,7 +323,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int,
 }
 
 func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ...store.ReadOption) *store.Iterator {
-	if traceEnabled {
+	if tracer.Enabled() {
 		logging.Logger(ctx, zlog).Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
 	}
 
@@ -348,7 +348,7 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ..
 }
 
 func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int, options ...store.ReadOption) *store.Iterator {
-	if traceEnabled {
+	if tracer.Enabled() {
 		logging.Logger(ctx, zlog).Debug("batch prefix scanning", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
 	}
 

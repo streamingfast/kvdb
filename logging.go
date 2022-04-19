@@ -16,11 +16,6 @@ package kvdb
 
 import (
 	"github.com/streamingfast/logging"
-	"go.uber.org/zap"
 )
 
-var zlog *zap.Logger
-
-func init() {
-	logging.Register("github.com/streamingfast/kvdb", &zlog)
-}
+var zlog, _ = logging.PackageLogger("kvdb", "github.com/streamingfast/kvdb")

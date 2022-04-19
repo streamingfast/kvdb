@@ -149,7 +149,7 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 }
 
 func (s *Store) FlushPuts(ctx context.Context) error {
-	if traceEnabled {
+	if tracer.Enabled() {
 		logging.Debug(ctx, zlog, "flushing batch", zap.Object("batch", s.batchPut))
 	}
 
@@ -181,7 +181,7 @@ func (s *Store) Get(ctx context.Context, key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	if traceEnabled {
+	if tracer.Enabled() {
 		zlog.Debug("received raw value for get", zap.Stringer("key", store.Key(key)), zap.Stringer("value", store.Key(val)))
 	}
 
@@ -196,7 +196,7 @@ func (s *Store) Get(ctx context.Context, key []byte) ([]byte, error) {
 		return nil, fmt.Errorf("unformat value: %w", err)
 	}
 
-	if traceEnabled {
+	if tracer.Enabled() {
 		zlog.Debug("returning value for get", zap.Stringer("key", store.Key(key)), zap.Stringer("value", store.Key(val)))
 	}
 
@@ -204,7 +204,7 @@ func (s *Store) Get(ctx context.Context, key []byte) ([]byte, error) {
 }
 
 func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
-	if traceEnabled {
+	if tracer.Enabled() {
 		logging.Debug(ctx, zlog, "batch get", zap.Int("key_count", len(keys)))
 	}
 
@@ -254,7 +254,7 @@ func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) error {
 
 func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
-	if traceEnabled {
+	if tracer.Enabled() {
 		zlogger.Debug("range scan",
 			zap.Stringer("start_key", store.Key(start)),
 			zap.Stringer("exclusive_end_key", store.Key(exclusiveEnd)),
@@ -282,7 +282,7 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ..
 
 func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
-	if traceEnabled {
+	if tracer.Enabled() {
 		zlogger.Debug("batch prefix", zap.Int("prefix_count", len(prefixes)), zap.Stringer("limit", store.Limit(limit)))
 	}
 
@@ -374,7 +374,7 @@ func (s *Store) scan(ctx context.Context, zlogger *zap.Logger, startKey, exclusi
 	readOptions := store.NewReadOptions(options...)
 	scanOptions := tikvScanOption(readOptions)
 
-	if traceEnabled {
+	if tracer.Enabled() {
 		zlogger.Debug("scanning",
 			zap.Stringer("start_key", store.Key(startKey)),
 			zap.Stringer("exclusive_end_key", store.Key(exclusiveEnd)),

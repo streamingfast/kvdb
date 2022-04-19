@@ -9,10 +9,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/streamingfast/logging"
 	"github.com/dgraph-io/badger/v2"
 	"github.com/dgraph-io/badger/v2/options"
 	"github.com/streamingfast/kvdb/store"
+	"github.com/streamingfast/logging"
 	"go.uber.org/zap"
 )
 
@@ -74,7 +74,11 @@ func (s *Store) Close() error {
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 	zlogger := logging.Logger(ctx, zlog)
-	zlogger.Debug("putting", zap.Stringer("key", store.Key(key)))
+
+	if tracer.Enabled() {
+		zlogger.Debug("putting key in store", zap.Stringer("key", store.Key(key)))
+	}
+
 	if s.writeBatch == nil {
 		s.writeBatch = s.db.NewWriteBatch()
 	}

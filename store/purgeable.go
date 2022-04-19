@@ -43,7 +43,7 @@ func (s *PurgeableKVStore) Put(ctx context.Context, key, value []byte) error {
 }
 
 func (s *PurgeableKVStore) MarkCurrentHeight(height uint64) {
-	if traceEnabled {
+	if tracer.Enabled() {
 		zlog.Debug("setting purgeable store height",
 			zap.Uint64("height", height),
 		)
