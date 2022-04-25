@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [`tivk`] **BREAKING** Upgraded to `tikv-client/v2` version, this currently requires TiKV version 5.0.0+.
 - [`tivk`] **BREAKING** The raw max scan limit dsn query parameter `tikv_raw_max_scan_limit=<value>` now applies globally to all instances. This means if in the use application, multiple DSN for TiKV are provided, the last one with `tikv_raw_max_scan_limit` wins.
 
+### Added
+
+- [`badger`] Added support for using `WithTruncate` option on Badger to delete not persisted data on starting by adding `truncate=true` param to DSN url (i.e. `badger:///path?truncate=true`)
+- [`badger`] Added support for switching to ZSTD compression instead of Snappy by providing `compression=zstd` param to DSN url (i.e. `badger:///path?compression=zstd`)
+
 ## [v0.1.0]
 
 ### Fixed

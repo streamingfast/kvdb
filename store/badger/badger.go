@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"net/url"
 	"os"
 	"path/filepath"
 
@@ -36,17 +35,28 @@ func init() {
 }
 
 func NewStore(dsnString string) (store.KVStore, error) {
-	dsn, err := url.Parse(dsnString)
+	dsn, err := newDSN(dsnString)
 	if err != nil {
 		return nil, fmt.Errorf("badger new: dsn: %w", err)
 	}
 
-	createPath := filepath.Dir(dsn.Path)
+	createPath := filepath.Dir(dsn.dbPath)
 	if err := os.MkdirAll(createPath, 0755); err != nil {
 		return nil, fmt.Errorf("creating path %q: %w", createPath, err)
 	}
 
-	db, err := badger.Open(badger.DefaultOptions(dsn.Path).WithLogger(nil).WithCompression(options.Snappy))
+	dbOptions := badger.DefaultOptions(dsn.dbPath).WithLogger(nil).WithCompression(options.Snappy)
+	if v := dsn.params.Get("compression"); v == "zst" || v == "zstd" {
+		dbOptions = dbOptions.WithCompression(options.ZSTD)
+	}
+
+	if v := dsn.params.Get("truncate"); v == "true" || v == "yes" {
+		dbOptions = dbOptions.WithTruncate(true)
+	} else {
+		dbOptions = dbOptions.WithTruncate(false)
+	}
+
+	db, err := badger.Open(dbOptions)
 	if err != nil {
 		return nil, fmt.Errorf("badger new: open badger db: %w", err)
 	}
@@ -55,7 +65,7 @@ func NewStore(dsnString string) (store.KVStore, error) {
 	// It only allows for seamless decompression -- otherwise Snappy kicks in automatically. This is why we
 	// use `math.MaxInt64` as the threshold to use for compression, this way, compression never kicks in
 	// (because size will always be < than `math.MaxInt64`).
-	compressor, err := store.NewCompressor(dsn.Query().Get("compression"), math.MaxInt64)
+	compressor, err := store.NewCompressor(dsn.params.Get("compression"), math.MaxInt64)
 	if err != nil {
 		return nil, err
 	}

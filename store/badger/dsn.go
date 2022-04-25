@@ -8,6 +8,7 @@ import (
 
 type dsn struct {
 	dbPath string
+	params url.Values
 }
 
 func newDSN(dsnString string) (*dsn, error) {
@@ -25,7 +26,13 @@ func newDSN(dsnString string) (*dsn, error) {
 		paths = append(paths, u.Path)
 	}
 
+	var params url.Values = nil
+	if len(u.Query()) > 0 {
+		params = u.Query()
+	}
+
 	return &dsn{
 		dbPath: strings.Join(paths, "/"),
+		params: params,
 	}, nil
 }
