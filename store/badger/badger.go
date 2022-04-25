@@ -47,12 +47,16 @@ func NewStore(dsnString string) (store.KVStore, error) {
 
 	dbOptions := badger.DefaultOptions(dsn.dbPath).WithLogger(nil).WithCompression(options.Snappy)
 	if v := dsn.params.Get("compression"); v == "zst" || v == "zstd" {
+		zlog.Info("using zstd compression on badger database", zap.String("path", dsn.dbPath))
 		dbOptions = dbOptions.WithCompression(options.ZSTD)
 	}
 
-	if v := dsn.params.Get("truncate"); v == "true" || v == "yes" {
+	truncateRaw := dsn.params.Get("truncate")
+	if truncateRaw == "true" || truncateRaw == "yes" {
+		zlog.Info("using 'truncate=true' on badger database", zap.String("path", dsn.dbPath))
 		dbOptions = dbOptions.WithTruncate(true)
-	} else {
+	} else if truncateRaw == "false" || truncateRaw == "no" {
+		zlog.Info("using 'truncate=false' on badger database", zap.String("path", dsn.dbPath))
 		dbOptions = dbOptions.WithTruncate(false)
 	}
 
