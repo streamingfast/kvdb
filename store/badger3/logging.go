@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package badger
+package badger3
 
 import (
 	"github.com/streamingfast/logging"
 )
 
-var zlog, tracer = logging.PackageLogger("kvdb", "github.com/streamingfast/kvdb/store/badger")
+var zlog, tracer = logging.PackageLogger("kvdb", "github.com/streamingfast/kvdb/store/badger3")
