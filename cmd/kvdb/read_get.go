@@ -42,14 +42,14 @@ func readGetRunE(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			fmt.Println("")
-			fmt.Printf("Key: %q NOT FOUND\n", key)
+			fmt.Printf("Key ->\t%s\tNOT FOUND\n", key)
 			return nil
 		}
 		return fmt.Errorf("failed to get key: %w", err)
 	}
 
 	fmt.Println("")
-	fmt.Printf("Key: %s\n", key)
-	fmt.Printf("Value: as hex: %s\n", outputDecoder.Decode(value))
+	fmt.Printf("Key\t->\t%s\n", key)
+	fmt.Printf("Value\t->\t%s\n", outputDecoder.Decode(value))
 	return nil
 }

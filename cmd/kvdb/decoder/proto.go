@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/golang/protobuf/proto"
+	"github.com/streamingfast/kvdb/cmd/kvdb/decoder/pb/system"
+	"google.golang.org/protobuf/types/descriptorpb"
+
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
@@ -45,6 +49,48 @@ func newProtoDecoder(scheme string) (*ProtoDecoder, error) {
 	protoPath := protoChunks[0]
 	messageType := protoChunks[1]
 
+	protoFiles, err := loadProtobufs(protoPath)
+	if err != nil {
+		return nil, fmt.Errorf("load protos: %w", err)
+
+	}
+
+	fileDescs, err := desc.CreateFileDescriptors(protoFiles)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't convert, should do this check much earlier: %w", err)
+	}
+
+	var msgDesc *desc.MessageDescriptor
+	for _, file := range fileDescs {
+		msgDesc = file.FindMessage(messageType)
+		if msgDesc != nil {
+			break
+		}
+	}
+
+	if msgDesc == nil {
+		return nil, fmt.Errorf("failed to find message descriptor %q", messageType)
+	}
+
+	return &ProtoDecoder{
+		messageType:       messageType,
+		messageDescriptor: msgDesc,
+	}, nil
+
+}
+
+func loadProtobufs(protoPath string) (out []*descriptorpb.FileDescriptorProto, err error) {
+	// System protos
+	systemFiles, err := readSystemProtobufs()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, file := range systemFiles.File {
+		out = append(out, file)
+	}
+
+	// User-specified protos
 	parser := &protoparse.Parser{
 		ImportPaths:           []string{},
 		IncludeSourceCodeInfo: true,
@@ -53,25 +99,21 @@ func newProtoDecoder(scheme string) (*ProtoDecoder, error) {
 	customFiles, err := parser.ParseFiles(protoPath)
 	if err != nil {
 		return nil, fmt.Errorf("parse proto file %q: %w", protoPath, err)
-
-	}
-	if len(customFiles) != 1 {
-		return nil, fmt.Errorf("expected 1 proto file descriptor")
 	}
 
-	fileDescs, err := desc.CreateFileDescriptor(customFiles[0].AsFileDescriptorProto())
+	for _, fd := range customFiles {
+		out = append(out, fd.AsFileDescriptorProto())
+	}
+
+	return out, nil
+}
+
+func readSystemProtobufs() (*descriptorpb.FileDescriptorSet, error) {
+	fds := &descriptorpb.FileDescriptorSet{}
+	err := proto.Unmarshal(system.ProtobufDescriptors, fds)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't convert file descriptor proto to file descriptor: %w", err)
+		return nil, err
 	}
 
-	messageDescriptor := fileDescs.FindMessage(messageType)
-	if messageDescriptor == nil {
-		return nil, fmt.Errorf("failed to find message descriptor %q", messageType)
-	}
-
-	return &ProtoDecoder{
-		messageType:       messageType,
-		messageDescriptor: messageDescriptor,
-	}, nil
-
+	return fds, nil
 }

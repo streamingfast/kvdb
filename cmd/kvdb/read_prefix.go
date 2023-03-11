@@ -13,16 +13,16 @@ import (
 	"go.uber.org/zap"
 )
 
-var ReadScanCmd = Command(readScanRunE,
-	"scan <start-key> <exclusive-end-key>",
-	"Scans for a given key range",
-	ExactArgs(2),
+var ReadPrefixCmd = Command(readPrefixRunE,
+	"prefix <prefix>",
+	"Retrieve keys by prefix",
+	ExactArgs(1),
 	Flags(func(flags *pflag.FlagSet) {
 		flags.Uint64("limit", 100, "Number of value to return, 0 is unbounded")
 	}),
 )
 
-func readScanRunE(cmd *cobra.Command, args []string) error {
+func readPrefixRunE(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 
 	kvdb, err := getKV()
@@ -35,19 +35,17 @@ func readScanRunE(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("decoder: %w", err)
 	}
 
-	startKey := args[0]
-	exclusivelyEndKey := args[1]
-	limit := viper.GetUint64("read-scan-limit")
-	zlog.Info("store scan key",
-		zap.String("start_key", startKey),
-		zap.String("exclusively_end_key", exclusivelyEndKey),
+	prefix := args[0]
+	limit := viper.GetUint64("read-prefix-limit")
+	zlog.Info("store prefix",
+		zap.String("prefix", prefix),
 		zap.Uint64("limit", limit),
 	)
 
-	itr := kvdb.Scan(ctx, []byte(startKey), []byte(exclusivelyEndKey), int(limit))
+	itr := kvdb.Prefix(ctx, []byte(prefix), int(limit))
 
 	keyCount := 0
-	fmt.Printf("Scanning keys [%q,%q)\n", startKey, exclusivelyEndKey)
+	fmt.Printf("keys with prefix: %s", prefix)
 	fmt.Println("")
 	for itr.Next() {
 		keyCount++

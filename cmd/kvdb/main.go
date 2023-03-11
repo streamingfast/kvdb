@@ -43,6 +43,7 @@ func main() {
 		Group("read", "KVDB read commands",
 			ReadGetCmd,
 			ReadScanCmd,
+			ReadPrefixCmd,
 
 			PersistentFlags(
 				func(flags *pflag.FlagSet) {
