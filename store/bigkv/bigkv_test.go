@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/streamingfast/logging"
 	"github.com/streamingfast/kvdb/store"
 	"github.com/streamingfast/kvdb/store/storetest"
+	"github.com/streamingfast/logging"
 	"github.com/stretchr/testify/require"
 )
 

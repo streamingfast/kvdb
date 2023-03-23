@@ -148,9 +148,26 @@ func (s *Store) BatchDelete(ctx context.Context, keys [][]byte) (err error) {
 	return nil
 }
 
-func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) *store.Iterator {
-	it := store.NewIterator(ctx)
+func (s *Store) BatchScan(ctx context.Context, ranges []store.ScanRange, limitPerRange int, options ...store.ReadOption) *store.Iterator {
+	zlogger := logging.Logger(ctx, zlog)
+	sit := store.NewIteratorFromMultipleSources(ctx, len(ranges))
 
+	zlogger.Debug("scanning", zap.Any("ranges", ranges), zap.Stringer("limit_per_range", store.Limit(limitPerRange)))
+	for _, r := range ranges {
+		s.scanToIterator(ctx, sit, r.Start, r.ExclusiveEnd, limitPerRange, options...)
+	}
+	return sit
+}
+
+func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) *store.Iterator {
+	zlogger := logging.Logger(ctx, zlog)
+	it := store.NewIterator(ctx)
+	zlogger.Debug("scanning", zap.Stringer("start", store.Key(start)), zap.Stringer("exclusive_end", store.Key(exclusiveEnd)), zap.Stringer("limit", store.Limit(limit)))
+	s.scanToIterator(ctx, it, start, exclusiveEnd, limit, options...)
+	return it
+}
+
+func (s *Store) scanToIterator(ctx context.Context, it *store.Iterator, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) {
 	go func() {
 		resp, err := s.client.Scan(ctx, &pbnetkv.ScanRequest{Start: start, ExclusiveEnd: exclusiveEnd, Limit: uint64(limit), Options: netkvReadOptions(options)})
 		if err != nil {
@@ -164,7 +181,6 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int,
 			}
 		}
 	}()
-	return it
 }
 
 func pushToIterator(it *store.Iterator, kv *pbnetkv.KeyValue, err error) bool {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 
@@ -27,6 +28,13 @@ var kvstoreTests = []struct {
 	{
 		name: "basic",
 		test: testBasic,
+		options: kvStoreOptions{
+			withPurgeable: false,
+		},
+	},
+	{
+		name: "batchBasic",
+		test: testBatchBasic,
 		options: kvStoreOptions{
 			withPurgeable: false,
 		},
@@ -295,6 +303,48 @@ func testBasic(t *testing.T, driver store.KVStore, _ *DriverCapabilities, _ kvSt
 	}
 }
 
+func testBatchBasic(t *testing.T, driver store.KVStore, _ *DriverCapabilities, _ kvStoreOptions) {
+	bigData := []byte("this is a long byte sequence with more than 50 bytes to we can properly test compression")
+
+	all := []store.KV{
+		{Key: []byte("a"), Value: []byte("1")},
+		{Key: []byte("ba"), Value: []byte("2")},
+		{Key: []byte("ba1"), Value: []byte("3")},
+		{Key: []byte("ba2"), Value: []byte("4")},
+		{Key: []byte("bb"), Value: []byte("5")},
+		{Key: []byte("c"), Value: []byte("6")},
+		{Key: []byte("g"), Value: bigData},
+	}
+
+	// testing PUT function
+	for _, kv := range all {
+		err := driver.Put(context.Background(), kv.Key, kv.Value)
+		require.NoError(t, err)
+	}
+
+	err := driver.FlushPuts(context.Background())
+	require.NoError(t, err)
+
+	// testing Scan without limit
+
+	testBatchScan(t, driver, []store.ScanRange{
+		{Start: []byte("a"), ExclusiveEnd: []byte("b")},
+		{Start: []byte("ba"), ExclusiveEnd: []byte("bb")},
+	},
+		1,
+		all[0:2],
+	)
+
+	testBatchScan(t, driver, []store.ScanRange{
+		{Start: []byte("a"), ExclusiveEnd: []byte("b")},
+		{Start: []byte("ba"), ExclusiveEnd: []byte("bb")},
+	},
+		10,
+		all[0:4],
+	)
+
+}
+
 func testEmtpyValue(t *testing.T, driver store.KVStore, capabilities *DriverCapabilities, options kvStoreOptions) {
 	key := []byte("randomkey")
 	canAddEmptyValue := options.enableEmptyValue || capabilities.SupportsEmptyValue
@@ -383,6 +433,23 @@ func testScan(t *testing.T, driver store.KVStore, start, end []byte, limit int, 
 	}
 
 	testPrintKVs(fmt.Sprintf("test scan with start %q and end %q", string(start), string(end)), got)
+	require.NoError(t, itr.Err())
+	require.Equal(t, exp, got)
+}
+
+func testBatchScan(t *testing.T, driver store.KVStore, ranges []store.ScanRange, limitPerRange int, exp []store.KV, options ...store.ReadOption) {
+	var got []store.KV
+
+	itr := driver.BatchScan(context.Background(), ranges, limitPerRange, options...)
+	for itr.Next() {
+		got = append(got, itr.Item())
+	}
+
+	sort.Slice(got, func(i, j int) bool {
+		return string(got[i].Key) < string(got[j].Key)
+	})
+
+	testPrintKVs(fmt.Sprintf("test scan with %v", ranges), got)
 	require.NoError(t, itr.Err())
 	require.Equal(t, exp, got)
 }

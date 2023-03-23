@@ -231,10 +231,26 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 	return kr
 }
 
+func (s *Store) BatchScan(ctx context.Context, ranges []store.ScanRange, limitPerRange int, options ...store.ReadOption) *store.Iterator {
+	zlogger := logging.Logger(ctx, zlog)
+	sit := store.NewIteratorFromMultipleSources(ctx, len(ranges))
+
+	zlogger.Debug("scanning", zap.Any("ranges", ranges), zap.Stringer("limit_per_range", store.Limit(limitPerRange)))
+	for _, r := range ranges {
+		s.scanToIterator(ctx, sit, r.Start, r.ExclusiveEnd, limitPerRange, options...)
+	}
+	return sit
+}
+
 func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
 	sit := store.NewIterator(ctx)
 	zlogger.Debug("scanning", zap.Stringer("start", store.Key(start)), zap.Stringer("exclusive_end", store.Key(exclusiveEnd)), zap.Stringer("limit", store.Limit(limit)))
+	s.scanToIterator(ctx, sit, start, exclusiveEnd, limit, options...)
+	return sit
+}
+
+func (s *Store) scanToIterator(ctx context.Context, it *store.Iterator, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) {
 	go func() {
 		err := s.db.View(func(txn *badger.Txn) error {
 			badgerOptions := badgerIteratorOptions(store.Limit(limit), options)
@@ -261,7 +277,7 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int,
 					}
 				}
 
-				if !sit.PushItem(store.KV{Key: bit.Item().KeyCopy(nil), Value: value}) {
+				if !it.PushItem(store.KV{Key: bit.Item().KeyCopy(nil), Value: value}) {
 					break
 				}
 
@@ -272,14 +288,12 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int,
 			return nil
 		})
 		if err != nil {
-			sit.PushError(err)
+			it.PushError(err)
 			return
 		}
 
-		sit.PushFinished()
+		it.PushFinished()
 	}()
-
-	return sit
 }
 
 func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ...store.ReadOption) *store.Iterator {

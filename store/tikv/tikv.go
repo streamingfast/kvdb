@@ -264,6 +264,21 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int,
 	return s.scanIterator(ctx, zlogger, s.withPrefix(start), s.withPrefix(exclusiveEnd), store.Limit(limit), options)
 }
 
+func (s *Store) BatchScan(ctx context.Context, ranges []store.ScanRange, limitPerRange int, options ...store.ReadOption) *store.Iterator {
+	zlogger := logging.Logger(ctx, zlog)
+	if tracer.Enabled() {
+		zlogger.Debug("batch range scan",
+			zap.Any("ranges", ranges),
+		)
+	}
+
+	it := store.NewIteratorFromMultipleSources(ctx, len(ranges))
+	for _, r := range ranges {
+		s.scanToIterator(ctx, zlogger, it, s.withPrefix(r.Start), s.withPrefix(r.ExclusiveEnd), store.Limit(limitPerRange), options)
+	}
+	return it
+}
+
 func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ...store.ReadOption) *store.Iterator {
 	zlogger := logging.Logger(ctx, zlog)
 	zlogger.Debug("prefix scanning", zap.Stringer("prefix", store.Key(prefix)), zap.Stringer("limit", store.Limit(limit)))
@@ -351,6 +366,11 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int, o
 
 func (s *Store) scanIterator(ctx context.Context, zlogger *zap.Logger, startKey, exclusiveEnd []byte, limit store.Limit, options []store.ReadOption) *store.Iterator {
 	it := store.NewIterator(ctx)
+	s.scanToIterator(ctx, zlogger, it, startKey, exclusiveEnd, limit, options)
+	return it
+}
+
+func (s *Store) scanToIterator(ctx context.Context, zlogger *zap.Logger, it *store.Iterator, startKey, exclusiveEnd []byte, limit store.Limit, options []store.ReadOption) {
 	go func() {
 		err := s.scan(ctx, zlogger, startKey, exclusiveEnd, limit, options, func(kv store.KV) bool {
 			if !it.PushItem(kv) {
@@ -367,7 +387,6 @@ func (s *Store) scanIterator(ctx context.Context, zlogger *zap.Logger, startKey,
 
 		it.PushFinished()
 	}()
-	return it
 }
 
 func (s *Store) scan(ctx context.Context, zlogger *zap.Logger, startKey, exclusiveEnd []byte, limit store.Limit, options []store.ReadOption, onKV func(kv store.KV) bool) (err error) {

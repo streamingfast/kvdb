@@ -289,7 +289,27 @@ func (s *Store) BatchDelete(ctx context.Context, deletionKeys [][]byte) (err err
 	return nil
 }
 
+func (s *Store) BatchScan(ctx context.Context, ranges []store.ScanRange, limitPerRange int, options ...store.ReadOption) *store.Iterator {
+
+	zlogger := logging.Logger(ctx, zlog)
+	sit := store.NewIteratorFromMultipleSources(ctx, len(ranges))
+
+	zlogger.Debug("scanning", zap.Any("ranges", ranges), zap.Stringer("limit_per_range", store.Limit(limitPerRange)))
+
+	for _, r := range ranges {
+		s.scanIntoIterator(ctx, sit, r.Start, r.ExclusiveEnd, limitPerRange, options...)
+	}
+
+	return sit
+}
+
 func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) *store.Iterator {
+	sit := store.NewIterator(ctx)
+	s.scanIntoIterator(ctx, sit, start, exclusiveEnd, limit, options...)
+	return sit
+}
+
+func (s *Store) scanIntoIterator(ctx context.Context, sit *store.Iterator, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) *store.Iterator {
 	startKey := s.withPrefix(start)
 	endKey := s.withPrefix(exclusiveEnd)
 
@@ -297,7 +317,6 @@ func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int,
 		logging.Logger(ctx, zlog).Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
 	}
 
-	sit := store.NewIterator(ctx)
 	if len(endKey) == 0 {
 		// Act like the other backends
 		sit.PushFinished()

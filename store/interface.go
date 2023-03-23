@@ -22,6 +22,8 @@ type KVStore interface {
 
 	Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...ReadOption) *Iterator
 
+	BatchScan(ctx context.Context, ranges []ScanRange, limitPerRange int, options ...ReadOption) *Iterator
+
 	Prefix(ctx context.Context, prefix []byte, limit int, options ...ReadOption) *Iterator
 	BatchPrefix(ctx context.Context, prefixes [][]byte, limit int, options ...ReadOption) *Iterator
 
