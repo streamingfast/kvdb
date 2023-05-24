@@ -36,7 +36,7 @@ func init() {
 }
 
 func main() {
-	Run("substreams-sink-kv", "KVDB Client",
+	Run("kvdb", "KVDB Client",
 		ConfigureViper("KVDB"),
 		ConfigureVersion(),
 
