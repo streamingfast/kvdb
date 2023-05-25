@@ -39,6 +39,7 @@ func main() {
 	Run("substreams-sink-kv", "KVDB Client",
 		ConfigureViper("KVDB"),
 		ConfigureVersion(),
+		MinimumNArgs(1),
 
 		Group("read", "KVDB read commands",
 			ReadGetCmd,
