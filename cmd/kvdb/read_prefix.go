@@ -2,11 +2,10 @@ package main
 
 import (
 	"fmt"
-
-	"github.com/streamingfast/kvdb/cmd/kvdb/decoder"
-
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"github.com/streamingfast/kvdb/cmd/kvdb/decoder"
+	"github.com/streamingfast/kvdb/cmd/kvdb/formatter"
 
 	"github.com/spf13/cobra"
 	. "github.com/streamingfast/cli"
@@ -19,6 +18,7 @@ var ReadPrefixCmd = Command(readPrefixRunE,
 	ExactArgs(1),
 	Flags(func(flags *pflag.FlagSet) {
 		flags.Uint64("limit", 100, "Number of value to return, 0 is unbounded")
+		flags.String("prefix-format", "ascii", "Prefix format such as ascii, hex, base58, base64, solanaATL, etc.")
 	}),
 )
 
@@ -35,6 +35,16 @@ func readPrefixRunE(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("decoder: %w", err)
 	}
 
+	keyDecoder, err := decoder.NewDecoder(viper.GetString("read-global-key-decoder"))
+	if err != nil {
+		return fmt.Errorf("key decoder: %w", err)
+	}
+
+	prefixDecoder, err := formatter.NewDecoder(viper.GetString("read-prefix-prefix-format"))
+	if err != nil {
+		return fmt.Errorf("prefix decoder: %w", err)
+	}
+
 	prefix := args[0]
 	limit := viper.GetUint64("read-prefix-limit")
 	zlog.Info("store prefix",
@@ -42,15 +52,19 @@ func readPrefixRunE(cmd *cobra.Command, args []string) error {
 		zap.Uint64("limit", limit),
 	)
 
-	itr := kvdb.Prefix(ctx, []byte(prefix), int(limit))
+	p, err := prefixDecoder.Decode(prefix)
+	if err != nil {
+		return fmt.Errorf("decoding prefix: %w", err)
+	}
+	itr := kvdb.Prefix(ctx, p, int(limit))
 
 	keyCount := 0
-	fmt.Printf("keys with prefix: %s", prefix)
 	fmt.Println("")
 	for itr.Next() {
 		keyCount++
 		it := itr.Item()
-		fmt.Printf("%s\t->\t%s\n", string(it.Key), outputDecoder.Decode(it.Value))
+		fmt.Printf("Key: %s\n", keyDecoder.Decode(it.Key))
+		fmt.Printf("Value(s): %s\n", outputDecoder.Decode(it.Value))
 	}
 	if err := itr.Err(); err != nil {
 		return fmt.Errorf("iteration failed: %w", err)

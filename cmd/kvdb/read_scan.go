@@ -35,6 +35,11 @@ func readScanRunE(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("decoder: %w", err)
 	}
 
+	keyDecoder, err := decoder.NewDecoder(viper.GetString("read-global-key-decoder"))
+	if err != nil {
+		return fmt.Errorf("key decoder: %w", err)
+	}
+
 	startKey := args[0]
 	exclusivelyEndKey := args[1]
 	limit := viper.GetUint64("read-scan-limit")
@@ -52,7 +57,7 @@ func readScanRunE(cmd *cobra.Command, args []string) error {
 	for itr.Next() {
 		keyCount++
 		it := itr.Item()
-		fmt.Printf("%s\t->\t%s\n", string(it.Key), outputDecoder.Decode(it.Value))
+		fmt.Printf("%s\t->\t%s\n", keyDecoder.Decode(it.Key), outputDecoder.Decode(it.Value))
 	}
 	if err := itr.Err(); err != nil {
 		return fmt.Errorf("iteration failed: %w", err)

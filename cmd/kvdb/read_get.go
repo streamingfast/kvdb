@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -33,12 +34,23 @@ func readGetRunE(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("decoder: %w", err)
 	}
 
+	keyDecoder, err := decoder.NewDecoder(viper.GetString("read-global-key-decoder"))
+	if err != nil {
+		return fmt.Errorf("key decoder: %w", err)
+	}
+	_ = keyDecoder
+
 	key := args[0]
 	zlog.Info("store get key",
 		zap.String("key", key),
 	)
 
-	value, err := kvdb.Get(ctx, []byte(key))
+	keyVal, err := hex.DecodeString(args[0])
+	if err != nil {
+		return fmt.Errorf("key decoder: %w", err)
+	}
+	value, err := kvdb.Get(ctx, keyVal)
+
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			fmt.Println("")

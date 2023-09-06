@@ -17,7 +17,8 @@ type KVStore interface {
 
 	// Get a given key.  Returns `kvdb.ErrNotFound` if not found.
 	Get(ctx context.Context, key []byte) (value []byte, err error)
-	// Get a batch of keys.  Returns `kvdb.ErrNotFound` the first time a key is not found: not finding a key is fatal and interrupts the resultset from being fetched completely.  BatchGet guarantees that Iterator return results in the exact same order as keys
+
+	// BatchGet a batch of keys.  Returns `kvdb.ErrNotFound` the first time a key is not found: not finding a key is fatal and interrupts the resultset from being fetched completely.  BatchGet guarantees that Iterator return results in the exact same order as keys
 	BatchGet(ctx context.Context, keys [][]byte) *Iterator
 
 	Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...ReadOption) *Iterator

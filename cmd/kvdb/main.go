@@ -49,6 +49,7 @@ func main() {
 			PersistentFlags(
 				func(flags *pflag.FlagSet) {
 					flags.String("decoder", "hex", "output decoding. Supported schemes: 'hex', 'ascii', 'proto:<path_to_proto>'")
+					flags.String("key-decoder", "hex", "key decoding. Supported schemes: 'hex', 'ascii', 'proto:<path_to_proto>'")
 				},
 			),
 		),
