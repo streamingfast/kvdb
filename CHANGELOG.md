@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- [`common`] Calling `Iterator.Err()` without ever having called `Iterator.Next()` is now an error.
 - [`badger`] Added support for using `WithTruncate` option on Badger to delete not persisted data on starting by adding `truncate=true` param to DSN url (i.e. `badger:///path?truncate=true`)
 - [`badger`] Added support for switching to ZSTD compression instead of Snappy by providing `compression=zstd` param to DSN url (i.e. `badger:///path?compression=zstd`)
 
