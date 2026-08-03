@@ -22,6 +22,7 @@ require (
 	go.uber.org/zap v1.21.0
 	google.golang.org/api v0.70.0
 	google.golang.org/grpc v1.44.0
+	google.golang.org/protobuf v1.28.2-0.20230222093303-bc1253ad3743
 )
 
 require (
@@ -93,9 +94,9 @@ require (
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220218161850-94dd64e39d7c // indirect
-	google.golang.org/protobuf v1.28.2-0.20230222093303-bc1253ad3743 // indirect
 	gopkg.in/ini.v1 v1.51.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	rsc.io/binaryregexp v0.2.0 // indirect
 )

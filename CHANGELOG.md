@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [`badger`] Added support for using `WithTruncate` option on Badger to delete not persisted data on starting by adding `truncate=true` param to DSN url (i.e. `badger:///path?truncate=true`)
 - [`badger`] Added support for switching to ZSTD compression instead of Snappy by providing `compression=zstd` param to DSN url (i.e. `badger:///path?compression=zstd`)
 
+### Fixed
+
+- [`common`] Fixed data race in `store.BatchOp`, all its methods are now safe for concurrent use.
+- [`bigkv`, `tikv`] Fixed concurrent `Put` calls on a single store silently dropping entries, the "flush if needed then append" sequence is now performed atomically. `FlushPuts` is serialized against `Put` for the same reason.
+
 ## [v0.1.0]
 
 ### Fixed
