@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/streamingfast/kvdb/store"
 	"github.com/streamingfast/logging"
@@ -24,7 +25,11 @@ type Store struct {
 	keyPrefix  []byte
 	compressor store.Compressor
 
-	batchPut *store.BatchOp
+	// batchPutLock serializes the whole "should I flush before adding this entry?" sequence,
+	// `BatchOp` being safe on its own is not enough because the decision and the append that
+	// follows it must be seen as a single atomic operation by concurrent writers.
+	batchPutLock sync.Mutex
+	batchPut     *store.BatchOp
 
 	// TIKV does not support empty values, if this flag is set
 	// tikv will prepend an empty byte on write and remove the first byte
@@ -134,11 +139,14 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 		return fmt.Errorf("empty value not supported by this store, if you expect to need to store empty value, please use `store.WithEmptyValue()` when creating the store to enable them")
 	}
 
+	s.batchPutLock.Lock()
+	defer s.batchPutLock.Unlock()
+
 	formattedKey := s.withPrefix(key)
 	formattedValue := s.formatValue(value)
 
 	if s.batchPut.WouldFlushNext(formattedKey, formattedValue) {
-		err := s.FlushPuts(ctx)
+		err := s.flushPuts(ctx)
 		if err != nil {
 			return err
 		}
@@ -149,6 +157,15 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 }
 
 func (s *Store) FlushPuts(ctx context.Context) error {
+	s.batchPutLock.Lock()
+	defer s.batchPutLock.Unlock()
+
+	return s.flushPuts(ctx)
+}
+
+// flushPuts must be called while holding `batchPutLock`, it exists so that `Put` can flush
+// without releasing the lock it acquired to make its check-then-append sequence atomic.
+func (s *Store) flushPuts(ctx context.Context) error {
 	if tracer.Enabled() {
 		logging.Debug(ctx, zlog, "flushing batch", zap.Object("batch", s.batchPut))
 	}
