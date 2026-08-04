@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/streamingfast/logging"
 
@@ -16,10 +17,15 @@ import (
 )
 
 type Store struct {
-	dsn      string
-	conn     *grpc.ClientConn
-	client   pbnetkv.NetKVClient
-	putBatch []*pbnetkv.KeyValue
+	dsn    string
+	conn   *grpc.ClientConn
+	client pbnetkv.NetKVClient
+
+	// putBatchLock serializes the appends to `putBatch` against each other and against the flush
+	// that sends it then swaps it out. A lost append is not just a race detector warning, the entry
+	// never reaches the server.
+	putBatchLock sync.Mutex
+	putBatch     []*pbnetkv.KeyValue
 }
 
 func (s *Store) String() string {
@@ -74,18 +80,30 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 		zlogger.Debug("putting key in store", zap.Stringer("key", store.Key(key)))
 	}
 
+	s.putBatchLock.Lock()
+	defer s.putBatchLock.Unlock()
+
 	s.putBatch = append(s.putBatch, &pbnetkv.KeyValue{Key: key, Value: value})
 	return nil
 }
 
+// FlushPuts holds `putBatchLock` for the whole duration of the `BatchPut` call so that a `Put`
+// racing with it cannot append to a batch that is about to be dropped. Unlike the other stores
+// there is no unlocked `flushPuts` variant here because `Put` never flushes on its own, it has
+// no threshold of its own and accumulates until the caller asks for a flush.
 func (s *Store) FlushPuts(ctx context.Context) error {
+	s.putBatchLock.Lock()
+	defer s.putBatchLock.Unlock()
+
 	if s.putBatch == nil {
 		return nil
 	}
+
 	_, err := s.client.BatchPut(ctx, &pbnetkv.KeyValues{Kvs: s.putBatch})
 	if err != nil {
 		return err
 	}
+
 	s.putBatch = nil
 	return nil
 }

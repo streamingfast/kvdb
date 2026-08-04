@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/dgraph-io/badger/v3"
 	"github.com/dgraph-io/badger/v3/options"
@@ -18,8 +19,14 @@ import (
 type Store struct {
 	dsn        string
 	db         *badger.DB
-	writeBatch *badger.WriteBatch
 	compressor store.Compressor
+
+	// writeBatchLock serializes the whole "create the batch if it does not exist yet then write
+	// into it" sequence. Badger's own `WriteBatch` is internally synchronized but the field holding
+	// it is not, so without this two concurrent writers can each create a batch and everything
+	// written in the one that loses the assignment is silently dropped.
+	writeBatchLock sync.Mutex
+	writeBatch     *badger.WriteBatch
 }
 
 func (s *Store) String() string {
@@ -89,6 +96,9 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 		zlogger.Debug("putting key in store", zap.Stringer("key", store.Key(key)))
 	}
 
+	s.writeBatchLock.Lock()
+	defer s.writeBatchLock.Unlock()
+
 	if s.writeBatch == nil {
 		s.writeBatch = s.db.NewWriteBatch()
 	}
@@ -98,12 +108,16 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 	err = s.writeBatch.SetEntry(badger.NewEntry(key, value))
 	if err == badger.ErrTxnTooBig {
 		zlogger.Debug("txn too big pre-emptively pushing")
-		if err := s.writeBatch.Flush(); err != nil {
+
+		// The unlocked variant is used here, we are already holding `writeBatchLock` and flushing
+		// through `FlushPuts` would deadlock.
+		if err := s.flushPuts(ctx); err != nil {
 			return err
 		}
 
-		s.writeBatch = s.db.NewWriteBatch()
-		err := s.writeBatch.SetEntry(badger.NewEntry(key, value))
+		// The error is re-assigned and not shadowed, otherwise the `ErrTxnTooBig` we just recovered
+		// from would still be seen by the check below and returned as a failure.
+		err = s.writeBatch.SetEntry(badger.NewEntry(key, value))
 		if err != nil {
 			return fmt.Errorf("set entry (after flush): %w", err)
 		}
@@ -117,13 +131,24 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 }
 
 func (s *Store) FlushPuts(ctx context.Context) error {
+	s.writeBatchLock.Lock()
+	defer s.writeBatchLock.Unlock()
+
+	return s.flushPuts(ctx)
+}
+
+// flushPuts must be called while holding `writeBatchLock`, it exists so that `Put` can flush
+// without releasing the lock it acquired to make its check-then-write sequence atomic.
+func (s *Store) flushPuts(ctx context.Context) error {
 	if s.writeBatch == nil {
 		return nil
 	}
+
 	err := s.writeBatch.Flush()
 	if err != nil {
 		return err
 	}
+
 	s.writeBatch = s.db.NewWriteBatch()
 	return nil
 }
