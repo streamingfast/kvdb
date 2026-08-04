@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - [`common`] Fixed data race in `store.BatchOp`, all its methods are now safe for concurrent use.
 - [`bigkv`, `tikv`] Fixed concurrent `Put` calls on a single store silently dropping entries, the "flush if needed then append" sequence is now performed atomically. `FlushPuts` is serialized against `Put` for the same reason.
+- [`badger`, `badger3`] Fixed concurrent `Put` calls on a single store silently dropping entries, two writers could each create a `WriteBatch` and everything written in the one losing the assignment was lost. `FlushPuts` is serialized against `Put` for the same reason.
+- [`badger`, `badger3`] Fixed `Put` returning an `ErrTxnTooBig` error even when the pre-emptive flush and the retry that follows it both succeeded.
+- [`netkv`] Fixed concurrent `Put` calls on a single store silently dropping entries, the appends to the pending batch are now serialized against each other and against `FlushPuts`.
+
+With those, concurrent `Put` calls are now safe on **every** store implementation.
 
 ## [v0.1.0]
 
