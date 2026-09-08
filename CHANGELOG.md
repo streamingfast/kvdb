@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - [`tivk`] **BREAKING** The raw max batch put size dsn query parameter `tikv_raw_max_batch_put_size=<value>` has been removed (the `tikv-client/v2` keeps it private now).
 - [`tivk`] **BREAKING** The raw batch pair count dsn query parameter `tikv_raw_batch_pair_count=<value>` has been removed (the `tikv-client/v2` keeps it private now).
+- [`bigkv`] **BREAKING** The key prefix dsn query parameter `keyPrefix=<hex>` has been removed and a dsn carrying it is now refused. Bigtable separates datasets by table, and `BatchGet` and `BatchDelete` never applied the prefix anyway, so a store configured with one read and deleted rows it had never written. Use a dedicated table instead.
 
 ### Changed
 
