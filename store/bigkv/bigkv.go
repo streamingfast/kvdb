@@ -2,7 +2,6 @@ package bigkv
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"net/url"
 	"os"
@@ -25,7 +24,6 @@ type Store struct {
 	client *bigtable.Client
 	table  *bigtable.Table
 
-	keyPrefix []byte
 	tableName string
 
 	columnName string
@@ -57,6 +55,13 @@ func NewStore(dsnString string) (store.KVStore, error) {
 	dsn, err := url.Parse(dsnString)
 	if err != nil {
 		return nil, err
+	}
+
+	// `keyPrefix` used to namespace several datasets sharing one store. Bigtable separates them
+	// by table, so the parameter is refused rather than ignored: a DSN asking for prefixed keys
+	// must not silently get bare ones.
+	if dsn.Query().Get("keyPrefix") != "" {
+		return nil, fmt.Errorf("dsn %q invalid, the keyPrefix parameter is not supported, use a dedicated table instead", dsnString)
 	}
 
 	ctx := context.Background()
@@ -116,14 +121,6 @@ func NewStore(dsnString string) (store.KVStore, error) {
 		maxSecondsBeforeFlush: maxSecondsBeforeFlush,
 	}
 
-	if keyPrefix := dsn.Query().Get("keyPrefix"); keyPrefix != "" {
-		keyPrefixBytes, err := hex.DecodeString(keyPrefix)
-		if err != nil {
-			return nil, fmt.Errorf("decoding keyPrefix as hex: %w", err)
-		}
-		s.keyPrefix = keyPrefixBytes
-	}
-
 	s.columnName = "kv"
 	if colName := dsn.Query().Get("colName"); colName != "" {
 		s.columnName = colName
@@ -173,15 +170,14 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 	s.batchPutLock.Lock()
 	defer s.batchPutLock.Unlock()
 
-	formattedKey := s.withPrefix(key)
-	if s.batchPut.WouldFlushNext(formattedKey, value) {
+	if s.batchPut.WouldFlushNext(key, value) {
 		err := s.flushPuts(ctx)
 		if err != nil {
 			return err
 		}
 	}
 
-	s.batchPut.Op(formattedKey, value)
+	s.batchPut.Op(key, value)
 	return nil
 }
 
@@ -225,7 +221,7 @@ func (s *Store) flushPuts(ctx context.Context) error {
 
 func (s *Store) Get(ctx context.Context, key []byte) (value []byte, err error) {
 	btOptions := bigtableReadOptions(store.Limit(store.Unlimited), nil)
-	row, err := s.table.ReadRow(ctx, string(s.withPrefix(key)), btOptions...)
+	row, err := s.table.ReadRow(ctx, string(key), btOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +246,7 @@ func (s *Store) BatchGet(ctx context.Context, keys [][]byte) *store.Iterator {
 	kr := store.NewIterator(ctx)
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.RowList(btKeys), func(row bigtable.Row) bool {
-			return kr.PushItem(store.KV{Key: s.withoutPrefix([]byte(row.Key())), Value: row[s.columnName][0].Value})
+			return kr.PushItem(store.KV{Key: []byte(row.Key()), Value: row[s.columnName][0].Value})
 		}, btOptions...)
 
 		if err != nil {
@@ -307,26 +303,23 @@ func (s *Store) BatchDelete(ctx context.Context, deletionKeys [][]byte) (err err
 }
 
 func (s *Store) Scan(ctx context.Context, start, exclusiveEnd []byte, limit int, options ...store.ReadOption) *store.Iterator {
-	startKey := s.withPrefix(start)
-	endKey := s.withPrefix(exclusiveEnd)
-
 	if tracer.Enabled() {
-		logging.Logger(ctx, zlog).Debug("scanning", zap.Stringer("start", store.Key(startKey)), zap.Stringer("exclusive_end", store.Key(endKey)), zap.Stringer("limit", store.Limit(limit)))
+		logging.Logger(ctx, zlog).Debug("scanning", zap.Stringer("start", store.Key(start)), zap.Stringer("exclusive_end", store.Key(exclusiveEnd)), zap.Stringer("limit", store.Limit(limit)))
 	}
 
 	sit := store.NewIterator(ctx)
-	if len(endKey) == 0 {
+	if len(exclusiveEnd) == 0 {
 		// Act like the other backends
 		sit.PushFinished()
 		return sit
 	}
 
 	btOptions := bigtableReadOptions(store.Limit(limit), options)
-	rowRange := bigtable.NewRange(string(startKey), string(endKey))
+	rowRange := bigtable.NewRange(string(start), string(exclusiveEnd))
 
 	go func() {
 		err := s.table.ReadRows(ctx, rowRange, func(row bigtable.Row) bool {
-			return sit.PushItem(store.KV{s.withoutPrefix([]byte(row.Key())), row[s.columnName][0].Value})
+			return sit.PushItem(store.KV{[]byte(row.Key()), row[s.columnName][0].Value})
 		}, btOptions...)
 
 		if err != nil {
@@ -346,11 +339,10 @@ func (s *Store) Prefix(ctx context.Context, prefix []byte, limit int, options ..
 
 	sit := store.NewIterator(ctx)
 	btOptions := bigtableReadOptions(store.Limit(limit), options)
-	prefix = s.withPrefix(prefix)
 
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.PrefixRange(string(prefix)), func(row bigtable.Row) bool {
-			return sit.PushItem(store.KV{s.withoutPrefix([]byte(row.Key())), row[s.columnName][0].Value})
+			return sit.PushItem(store.KV{[]byte(row.Key()), row[s.columnName][0].Value})
 		}, btOptions...)
 
 		if err != nil {
@@ -373,12 +365,12 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int, o
 	btOptions := bigtableReadOptions(store.Limit(limit), options)
 	rowRanges := make([]bigtable.RowRange, len(prefixes))
 	for i, prefix := range prefixes {
-		rowRanges[i] = bigtable.PrefixRange(string(s.withPrefix(prefix)))
+		rowRanges[i] = bigtable.PrefixRange(string(prefix))
 	}
 
 	go func() {
 		err := s.table.ReadRows(ctx, bigtable.RowRangeList(rowRanges), func(row bigtable.Row) bool {
-			return sit.PushItem(store.KV{Key: s.withoutPrefix([]byte(row.Key())), Value: row[s.columnName][0].Value})
+			return sit.PushItem(store.KV{Key: []byte(row.Key()), Value: row[s.columnName][0].Value})
 		}, btOptions...)
 
 		if err != nil {
@@ -390,23 +382,6 @@ func (s *Store) BatchPrefix(ctx context.Context, prefixes [][]byte, limit int, o
 	}()
 
 	return sit
-}
-
-func (s *Store) withPrefix(key []byte) []byte {
-	if len(s.keyPrefix) == 0 {
-		return key
-	}
-	out := make([]byte, len(s.keyPrefix)+len(key))
-	copy(out[0:], s.keyPrefix)
-	copy(out[len(s.keyPrefix):], key)
-	return out
-}
-
-func (s *Store) withoutPrefix(key []byte) []byte {
-	if len(s.keyPrefix) == 0 {
-		return key
-	}
-	return key[len(s.keyPrefix):]
 }
 
 var keyOnlyFilter = bigtable.StripValueFilter()

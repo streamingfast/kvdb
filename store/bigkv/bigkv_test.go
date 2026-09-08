@@ -46,3 +46,9 @@ func newTestFactory(t *testing.T) storetest.DriverFactory {
 		}
 	}
 }
+
+func TestNewStoreRefusesKeyPrefix(t *testing.T) {
+	_, err := store.New("bigkv://dev.dev/dev-table?keyPrefix=aabb")
+
+	require.ErrorContains(t, err, "the keyPrefix parameter is not supported")
+}
