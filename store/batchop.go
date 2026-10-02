@@ -107,10 +107,46 @@ func (b *BatchOp) GetBatch() []*KV {
 	return b.batch
 }
 
+// Take returns the pending entries and empties the batch, as a single step. The caller owns
+// the returned slice.
+func (b *BatchOp) Take() []*KV {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	batch := b.batch
+	b.reset()
+
+	return batch
+}
+
+// Restore puts back entries obtained from [BatchOp.Take], ahead of everything added since, so
+// that a caller whose flush failed can have them written by the next one in their original
+// order.
+func (b *BatchOp) Restore(entries []*KV) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	for _, entry := range entries {
+		b.size += entry.Size()
+		b.puts++
+
+		if b.largestEntry.Size() < entry.Size() {
+			b.largestEntry = entry
+		}
+	}
+
+	b.batch = append(entries, b.batch...)
+}
+
 func (b *BatchOp) Reset() {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
+	b.reset()
+}
+
+// reset must be called while holding the lock.
+func (b *BatchOp) reset() {
 	capacity := 1024
 	if b.putsThreshold > 0 {
 		capacity = b.putsThreshold
