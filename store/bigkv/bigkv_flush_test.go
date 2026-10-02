@@ -3,6 +3,9 @@ package bigkv
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -79,4 +82,49 @@ func TestFailedFlushKeepsEntriesForNextFlush(t *testing.T) {
 	value, err = kvStore.Get(ctx, []byte("rewritten"))
 	require.NoError(t, err)
 	assert.Equal(t, []byte("new"), value, "an entry kept from a failed flush must not overwrite a newer one")
+}
+
+func TestWritersFindingBatchFullFlushOnce(t *testing.T) {
+	const writerCount = 8
+
+	ctx := context.Background()
+	kvStore := newEmulatorStore(t, "?createTable=true&maxRowsBeforeFlush=100").(*Store)
+
+	var flushes atomic.Int64
+	applyBulk := kvStore.applyBulk
+	kvStore.applyBulk = func(ctx context.Context, rowKeys []string, muts []*bigtable.Mutation) ([]error, error) {
+		flushes.Add(1)
+		return applyBulk(ctx, rowKeys, muts)
+	}
+
+	// One entry short of the threshold, so that every writer below finds the batch full.
+	for i := 0; i < 99; i++ {
+		require.NoError(t, kvStore.Put(ctx, []byte(fmt.Sprintf("filler-%02d", i)), []byte("value")))
+	}
+
+	// Flushes are held back until every writer has found the batch full and is waiting for
+	// its turn to flush.
+	kvStore.flushLock.Lock()
+
+	var wg sync.WaitGroup
+	for writer := 0; writer < writerCount; writer++ {
+		wg.Add(1)
+
+		go func(writer int) {
+			defer wg.Done()
+			assert.NoError(t, kvStore.Put(ctx, testKey(writer, 0), []byte("value")))
+		}(writer)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+	kvStore.flushLock.Unlock()
+	wg.Wait()
+
+	assert.EqualValues(t, 1, flushes.Load(), "only the first writer has anything left to flush")
+
+	require.NoError(t, kvStore.FlushPuts(ctx))
+	for writer := 0; writer < writerCount; writer++ {
+		_, err := kvStore.Get(ctx, testKey(writer, 0))
+		require.NoError(t, err)
+	}
 }

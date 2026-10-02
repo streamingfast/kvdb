@@ -183,7 +183,7 @@ func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 		// waits for it.
 		s.batchPutLock.Unlock()
 
-		if err := s.FlushPuts(ctx); err != nil {
+		if err := s.flushBefore(ctx, key, value); err != nil {
 			return err
 		}
 
@@ -203,6 +203,25 @@ func (s *Store) FlushPuts(ctx context.Context) error {
 	s.flushLock.Lock()
 	defer s.flushLock.Unlock()
 
+	return s.flushPuts(ctx)
+}
+
+// flushBefore makes room for an entry. Several writers can find the batch full at the same
+// time, so the need is checked again once it is this writer's turn: the flush of the writer
+// ahead of it has usually made the room already.
+func (s *Store) flushBefore(ctx context.Context, key, value []byte) error {
+	s.flushLock.Lock()
+	defer s.flushLock.Unlock()
+
+	if !s.batchPut.WouldFlushNext(key, value) {
+		return nil
+	}
+
+	return s.flushPuts(ctx)
+}
+
+// flushPuts must be called while holding `flushLock`.
+func (s *Store) flushPuts(ctx context.Context) error {
 	if tracer.Enabled() {
 		logging.Logger(ctx, zlog).Debug("flushing puts")
 	}
