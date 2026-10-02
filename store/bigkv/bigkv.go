@@ -32,11 +32,17 @@ type Store struct {
 	maxRowsBeforeFlush    uint64
 	maxSecondsBeforeFlush uint64
 
-	// batchPutLock serializes the whole "should I flush before adding this entry?" sequence,
-	// `BatchOp` being safe on its own is not enough because the decision and the append that
-	// follows it must be seen as a single atomic operation by concurrent writers.
+	// batchPutLock makes the "should I flush before adding this entry?" check and the append
+	// that follows it a single atomic operation for concurrent writers. It is never held while
+	// writing to Bigtable, so a `Put` does not wait for a flush it did not trigger.
 	batchPutLock sync.Mutex
 	batchPut     *store.BatchOp
+
+	// flushLock serializes flushes, so entries reach Bigtable in the order they were put.
+	flushLock sync.Mutex
+
+	// applyBulk writes mutations to Bigtable, it is a field so tests can stand in for it.
+	applyBulk func(ctx context.Context, rowKeys []string, muts []*bigtable.Mutation) ([]error, error)
 }
 
 func (s *Store) String() string {
@@ -130,6 +136,9 @@ func NewStore(dsnString string) (store.KVStore, error) {
 
 	tableName := strings.Trim(dsn.Path, "/")
 	s.table = client.Open(tableName)
+	s.applyBulk = func(ctx context.Context, rowKeys []string, muts []*bigtable.Mutation) ([]error, error) {
+		return s.table.ApplyBulk(ctx, rowKeys, muts)
+	}
 
 	if createTable {
 		adminClient, err := bigtable.NewAdminClient(ctx, project, instance)
@@ -168,34 +177,37 @@ func (s *Store) Close() error {
 
 func (s *Store) Put(ctx context.Context, key, value []byte) (err error) {
 	s.batchPutLock.Lock()
-	defer s.batchPutLock.Unlock()
 
 	if s.batchPut.WouldFlushNext(key, value) {
-		err := s.flushPuts(ctx)
-		if err != nil {
+		// Released for the duration of the flush, so only the writer that filled the batch
+		// waits for it.
+		s.batchPutLock.Unlock()
+
+		if err := s.FlushPuts(ctx); err != nil {
 			return err
 		}
+
+		s.batchPutLock.Lock()
 	}
 
 	s.batchPut.Op(key, value)
+	s.batchPutLock.Unlock()
+
 	return nil
 }
 
+// FlushPuts writes the pending entries to Bigtable. Entries put while the write is in progress
+// are accepted without waiting and belong to the next flush. When the write fails, the entries
+// stay pending and the next flush writes them again.
 func (s *Store) FlushPuts(ctx context.Context) error {
-	s.batchPutLock.Lock()
-	defer s.batchPutLock.Unlock()
+	s.flushLock.Lock()
+	defer s.flushLock.Unlock()
 
-	return s.flushPuts(ctx)
-}
-
-// flushPuts must be called while holding `batchPutLock`, it exists so that `Put` can flush
-// without releasing the lock it acquired to make its check-then-append sequence atomic.
-func (s *Store) flushPuts(ctx context.Context) error {
 	if tracer.Enabled() {
 		logging.Logger(ctx, zlog).Debug("flushing puts")
 	}
 
-	kvs := s.batchPut.GetBatch()
+	kvs := s.batchPut.Take()
 	if len(kvs) == 0 {
 		return nil
 	}
@@ -208,14 +220,15 @@ func (s *Store) flushPuts(ctx context.Context) error {
 		mut.Set(s.columnName, "v", bigtable.Now(), kv.Value)
 		values[idx] = mut
 	}
-	errs, err := s.table.ApplyBulk(ctx, keys, values)
+	errs, err := s.applyBulk(ctx, keys, values)
 	if err != nil {
+		s.batchPut.Restore(kvs)
 		return err
 	}
 	if len(errs) != 0 {
+		s.batchPut.Restore(kvs)
 		return fmt.Errorf("apply bulk error: %w", multierr.Combine(errs...))
 	}
-	s.batchPut.Reset()
 	return nil
 }
 

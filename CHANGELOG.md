@@ -21,9 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [`common`] Calling `Iterator.Err()` without ever having called `Iterator.Next()` is now an error.
 - [`badger`] Added support for using `WithTruncate` option on Badger to delete not persisted data on starting by adding `truncate=true` param to DSN url (i.e. `badger:///path?truncate=true`)
 - [`badger`] Added support for switching to ZSTD compression instead of Snappy by providing `compression=zstd` param to DSN url (i.e. `badger:///path?compression=zstd`)
+- [`common`] Added `BatchOp.Take` and `BatchOp.Restore`, to empty a batch before writing it out and to put its entries back when the write fails.
 
 ### Fixed
 
+- [`bigkv`] Fixed `Put` waiting for the flush in progress to complete. The write to Bigtable now happens without holding the lock `Put` takes, so only the `Put` that fills the batch waits for a flush.
 - [`common`] Fixed data race in `store.BatchOp`, all its methods are now safe for concurrent use.
 - [`bigkv`, `tikv`] Fixed concurrent `Put` calls on a single store silently dropping entries, the "flush if needed then append" sequence is now performed atomically. `FlushPuts` is serialized against `Put` for the same reason.
 - [`badger`, `badger3`] Fixed concurrent `Put` calls on a single store silently dropping entries, two writers could each create a `WriteBatch` and everything written in the one losing the assignment was lost. `FlushPuts` is serialized against `Put` for the same reason.
